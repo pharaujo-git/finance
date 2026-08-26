@@ -17,10 +17,11 @@ public sealed class GoalRequest
     public string Name { get; init; } = string.Empty;
 
     [Range(typeof(decimal), "0.01", "999999999999.99")]
-    public decimal TargetAmount { get; init; }
+    public required decimal TargetAmount { get; init; }
 
+    /// <summary>Optional; an omitted balance means the goal starts empty.</summary>
     [Range(typeof(decimal), "0.00", "999999999999.99")]
-    public decimal CurrentAmount { get; init; }
+    public decimal? CurrentAmount { get; init; }
 
     public DateTime? TargetDate { get; init; }
 
@@ -31,5 +32,5 @@ public sealed class GoalRequest
 public sealed class ContributeRequest
 {
     [Range(typeof(decimal), "0.01", "999999999999.99")]
-    public decimal Amount { get; init; }
+    public required decimal Amount { get; init; }
 }

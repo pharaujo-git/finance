@@ -19,19 +19,16 @@ public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Total, int Page,
 
 public sealed class TransactionRequest
 {
-    [Required]
-    public Guid AccountId { get; init; }
+    public required Guid AccountId { get; init; }
 
     public Guid? CategoryId { get; init; }
 
-    [Required]
-    public TransactionType Type { get; init; }
+    public required TransactionType Type { get; init; }
 
     [Range(typeof(decimal), "0.01", "999999999999.99")]
-    public decimal Amount { get; init; }
+    public required decimal Amount { get; init; }
 
-    [Required]
-    public DateTime Date { get; init; }
+    public required DateTime Date { get; init; }
 
     [Required]
     [MaxLength(500)]
@@ -45,14 +42,20 @@ public sealed class TransactionRequest
     public Guid? TransferAccountId { get; init; }
 }
 
-/// <summary>Query string filters for <c>GET /api/transactions</c>.</summary>
+/// <summary>Query string filters for <c>GET /api/transactions</c>. Every value is optional.</summary>
 public sealed class TransactionQuery
 {
-    [Range(1, int.MaxValue)]
-    public int Page { get; init; } = 1;
+    public const int DefaultPage = 1;
 
-    [Range(1, 200)]
-    public int PageSize { get; init; } = 20;
+    public const int DefaultPageSize = 20;
+
+    public const int MaxPageSize = 200;
+
+    [Range(1, int.MaxValue)]
+    public int? Page { get; init; }
+
+    [Range(1, MaxPageSize)]
+    public int? PageSize { get; init; }
 
     public Guid? AccountId { get; init; }
 
@@ -66,6 +69,12 @@ public sealed class TransactionQuery
 
     [MaxLength(200)]
     public string? Search { get; init; }
+
+    /// <summary>The requested page, or the default when the caller omitted it.</summary>
+    public int EffectivePage => Page ?? DefaultPage;
+
+    /// <summary>The requested page size, or the default when the caller omitted it.</summary>
+    public int EffectivePageSize => PageSize ?? DefaultPageSize;
 }
 
 public sealed record ImportResult(int Imported, int Skipped);

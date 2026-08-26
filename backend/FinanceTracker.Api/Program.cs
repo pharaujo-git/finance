@@ -9,15 +9,15 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Render (and most PaaS hosts) inject the listening port through PORT.
-var port = builder.Configuration["PORT"] ?? "8080";
-if (builder.Environment.IsProduction() || Environment.GetEnvironmentVariable("PORT") is not null)
+// Render (and most PaaS hosts) inject the listening port through PORT and terminate TLS
+// at their edge proxy, so Kestrel binds a plain socket on every interface inside the container.
+if (builder.Environment.IsProduction() || builder.Configuration[ServerBinding.PortVariable] is not null)
 {
-    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+    var port = ServerBinding.ResolvePort(builder.Configuration);
+    builder.WebHost.ConfigureKestrel(options => options.ListenAnyIP(port));
 }
 
 // Everything below resolves configuration from DI so that values supplied late
@@ -98,44 +98,15 @@ app.MapGet("/health", () => Results.Text("ok")).AllowAnonymous();
 
 await app.RunAsync();
 
-/// <summary>Reads the comma-separated <c>ALLOWED_ORIGINS</c> variable.</summary>
-internal static class CorsOrigins
+/// <summary>
+/// The entry-point class generated from the top-level statements above. It stays in the global
+/// namespace because that is where the compiler emits it, and it is made public so the
+/// integration tests can boot the real pipeline through <c>WebApplicationFactory</c>.
+/// </summary>
+public partial class Program
 {
-    public const string Variable = "ALLOWED_ORIGINS";
-
-    public const string Default = "http://localhost:5173";
-
-    public static string[] Read(IConfiguration configuration)
+    /// <summary>The runtime invokes the generated entry point; nothing constructs this type.</summary>
+    protected Program()
     {
-        var raw = configuration[Variable];
-        var value = string.IsNullOrWhiteSpace(raw) ? Default : raw;
-        return value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 }
-
-/// <summary>Swagger document plus the bearer-token input box.</summary>
-internal static class SwaggerSetup
-{
-    public static void Configure(Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenOptions options)
-    {
-        options.SwaggerDoc("v1", new OpenApiInfo { Title = "Finance Tracker API", Version = "v1" });
-
-        options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-        {
-            Name = "Authorization",
-            Type = SecuritySchemeType.Http,
-            Scheme = "bearer",
-            BearerFormat = "JWT",
-            In = ParameterLocation.Header,
-            Description = "Paste the JWT returned by /api/auth/login.",
-        });
-
-        options.AddSecurityRequirement(_ => new OpenApiSecurityRequirement
-        {
-            [new OpenApiSecuritySchemeReference("Bearer")] = [],
-        });
-    }
-}
-
-/// <summary>Exposed so the integration tests can boot the real pipeline.</summary>
-public partial class Program;

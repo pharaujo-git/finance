@@ -18,18 +18,21 @@ public sealed class TransactionService(AppDbContext db, CategoryService categori
     {
         ArgumentNullException.ThrowIfNull(query);
 
+        var page = query.EffectivePage;
+        var pageSize = query.EffectivePageSize;
+
         var filtered = ApplyFilters(db.Transactions.AsNoTracking().OwnedBy(userId), query);
         var total = await filtered.CountAsync(cancellationToken).ConfigureAwait(false);
 
         var items = await filtered
             .OrderByDescending(t => t.Date)
             .ThenByDescending(t => t.Id)
-            .Skip((query.Page - 1) * query.PageSize)
-            .Take(query.PageSize)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return new PagedResult<TransactionDto>(items.Select(Map).ToList(), total, query.Page, query.PageSize);
+        return new PagedResult<TransactionDto>(items.Select(Map).ToList(), total, page, pageSize);
     }
 
     public async Task<TransactionDto> GetAsync(Guid userId, Guid id, CancellationToken cancellationToken) =>

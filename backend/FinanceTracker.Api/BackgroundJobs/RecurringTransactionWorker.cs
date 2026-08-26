@@ -21,9 +21,9 @@ public sealed class RecurringTransactionWorker(
             }
             while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false));
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
-            logger.LogInformation("Recurring transaction worker stopping.");
+            logger.LogInformation(ex, "Recurring transaction worker stopping after host shutdown.");
         }
     }
 

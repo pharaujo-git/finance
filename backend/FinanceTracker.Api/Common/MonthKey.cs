@@ -18,7 +18,7 @@ public static class MonthKey
             return false;
         }
 
-        firstDayUtc = DateTime.SpecifyKind(new DateTime(parsed.Year, parsed.Month, 1), DateTimeKind.Utc);
+        firstDayUtc = FirstDayUtc(parsed.Year, parsed.Month);
         return true;
     }
 
@@ -29,8 +29,11 @@ public static class MonthKey
             : throw ApiException.BadRequest("Month must be in YYYY-MM format.");
 
     /// <summary>The first day of the month containing <paramref name="value"/>, in UTC.</summary>
-    public static DateTime StartOfMonth(DateTime value) =>
-        DateTime.SpecifyKind(new DateTime(value.Year, value.Month, 1), DateTimeKind.Utc);
+    public static DateTime StartOfMonth(DateTime value) => FirstDayUtc(value.Year, value.Month);
+
+    /// <summary>Midnight UTC on the first day of the given month.</summary>
+    public static DateTime FirstDayUtc(int year, int month) =>
+        new(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
 
     /// <summary>The <paramref name="count"/> months ending with the month of <paramref name="reference"/>, oldest first.</summary>
     public static IReadOnlyList<DateTime> TrailingMonths(DateTime reference, int count)

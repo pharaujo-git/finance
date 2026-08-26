@@ -44,7 +44,7 @@ public sealed class AccountService(AppDbContext db)
             UserId = userId,
             Name = request.Name.Trim(),
             Type = request.Type,
-            InitialBalance = request.InitialBalance,
+            InitialBalance = request.InitialBalance ?? 0m,
             Currency = request.Currency.Trim().ToUpperInvariant(),
             CreatedAt = DateTime.UtcNow,
         };
@@ -67,7 +67,7 @@ public sealed class AccountService(AppDbContext db)
         account.Name = request.Name.Trim();
         account.Type = request.Type;
         account.Currency = request.Currency.Trim().ToUpperInvariant();
-        account.IsArchived = request.IsArchived;
+        account.IsArchived = request.IsArchived ?? false;
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         var slices = await LoadSlicesAsync(userId, cancellationToken).ConfigureAwait(false);

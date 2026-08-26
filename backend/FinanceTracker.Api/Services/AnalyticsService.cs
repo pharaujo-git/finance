@@ -101,7 +101,7 @@ public sealed class AnalyticsService(AppDbContext db, TransactionService transac
             throw ApiException.BadRequest("Year must be between 1900 and 9999.");
         }
 
-        var start = DateTime.SpecifyKind(new DateTime(year, 1, 1), DateTimeKind.Utc);
+        var start = MonthKey.FirstDayUtc(year, 1);
         var slices = await transactions
             .LoadSlicesAsync(userId, start, start.AddYears(1).AddTicks(-1), cancellationToken)
             .ConfigureAwait(false);

@@ -18,10 +18,10 @@ public sealed class CreateAccountRequest
     [MaxLength(200)]
     public string Name { get; init; } = string.Empty;
 
-    [Required]
-    public AccountType Type { get; init; }
+    public required AccountType Type { get; init; }
 
-    public decimal InitialBalance { get; init; }
+    /// <summary>Optional; an omitted opening balance means zero.</summary>
+    public decimal? InitialBalance { get; init; }
 
     [Required]
     [MaxLength(8)]
@@ -34,12 +34,12 @@ public sealed class UpdateAccountRequest
     [MaxLength(200)]
     public string Name { get; init; } = string.Empty;
 
-    [Required]
-    public AccountType Type { get; init; }
+    public required AccountType Type { get; init; }
 
     [Required]
     [MaxLength(8)]
     public string Currency { get; init; } = "USD";
 
-    public bool IsArchived { get; init; }
+    /// <summary>Optional; an omitted flag leaves the account active.</summary>
+    public bool? IsArchived { get; init; }
 }

@@ -18,28 +18,25 @@ public sealed record RecurringRuleDto(
 
 public sealed class RecurringRuleRequest
 {
-    [Required]
-    public Guid AccountId { get; init; }
+    public required Guid AccountId { get; init; }
 
     public Guid? CategoryId { get; init; }
 
-    [Required]
-    public TransactionType Type { get; init; }
+    public required TransactionType Type { get; init; }
 
     [Range(typeof(decimal), "0.01", "999999999999.99")]
-    public decimal Amount { get; init; }
+    public required decimal Amount { get; init; }
 
     [Required]
     [MaxLength(500)]
     public string Description { get; init; } = string.Empty;
 
-    [Required]
-    public Frequency Frequency { get; init; }
+    public required Frequency Frequency { get; init; }
 
-    [Required]
-    public DateTime StartDate { get; init; }
+    public required DateTime StartDate { get; init; }
 
     public DateTime? EndDate { get; init; }
 
-    public bool IsActive { get; init; } = true;
+    /// <summary>Optional; an omitted flag leaves the rule running.</summary>
+    public bool? IsActive { get; init; }
 }

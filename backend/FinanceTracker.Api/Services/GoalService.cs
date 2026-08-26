@@ -82,7 +82,7 @@ public sealed class GoalService(AppDbContext db)
     {
         goal.Name = request.Name.Trim();
         goal.TargetAmount = decimal.Round(request.TargetAmount, 2, MidpointRounding.AwayFromZero);
-        goal.CurrentAmount = decimal.Round(request.CurrentAmount, 2, MidpointRounding.AwayFromZero);
+        goal.CurrentAmount = decimal.Round(request.CurrentAmount ?? 0m, 2, MidpointRounding.AwayFromZero);
         goal.TargetDate = UtcDate.Normalize(request.TargetDate);
         goal.Color = request.Color.Trim();
     }

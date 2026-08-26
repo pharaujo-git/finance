@@ -17,8 +17,7 @@ public sealed class CategoryRequest
     [MaxLength(200)]
     public string Name { get; init; } = string.Empty;
 
-    [Required]
-    public CategoryType Type { get; init; }
+    public required CategoryType Type { get; init; }
 
     [MaxLength(64)]
     public string Icon { get; init; } = string.Empty;

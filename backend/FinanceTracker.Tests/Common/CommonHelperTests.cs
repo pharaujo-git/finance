@@ -73,6 +73,51 @@ public sealed class MonthKeyTests
     }
 }
 
+public sealed class ServerBindingTests
+{
+    [Theory]
+    [InlineData("9091", 9091)]
+    [InlineData("1", 1)]
+    [InlineData("65535", 65535)]
+    public void ValidPortsAreHonoured(string configured, int expected) =>
+        Assert.Equal(expected, ServerBinding.ResolvePort(Configuration(configured)));
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("not-a-number")]
+    [InlineData("0")]
+    [InlineData("70000")]
+    [InlineData("-1")]
+    public void MissingOrOutOfRangePortsFallBackToTheDefault(string? configured) =>
+        Assert.Equal(ServerBinding.DefaultPort, ServerBinding.ResolvePort(Configuration(configured)));
+
+    private static IConfiguration Configuration(string? port) =>
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { [ServerBinding.PortVariable] = port })
+            .Build();
+}
+
+public sealed class CorsOriginsTests
+{
+    [Fact]
+    public void MissingVariableFallsBackToTheViteDevServer() =>
+        Assert.Equal([CorsOrigins.Default], CorsOrigins.Read(Configuration(null)));
+
+    [Fact]
+    public void CommaSeparatedOriginsAreSplitAndTrimmed()
+    {
+        var origins = CorsOrigins.Read(Configuration(" https://app.example.com , https://staging.example.com "));
+
+        Assert.Equal(["https://app.example.com", "https://staging.example.com"], origins);
+    }
+
+    private static IConfiguration Configuration(string? value) =>
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { [CorsOrigins.Variable] = value })
+            .Build();
+}
+
 public sealed class UtcDateTests
 {
     [Fact]

@@ -159,7 +159,7 @@ public sealed class RecurringService(AppDbContext db, CategoryService categories
         rule.Frequency = request.Frequency;
         rule.StartDate = UtcDate.Normalize(request.StartDate);
         rule.EndDate = UtcDate.Normalize(request.EndDate);
-        rule.IsActive = request.IsActive;
+        rule.IsActive = request.IsActive ?? true;
     }
 
     private async Task ValidateAsync(Guid userId, RecurringRuleRequest request, CancellationToken cancellationToken)

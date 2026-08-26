@@ -61,7 +61,7 @@ internal sealed class TestHarness : IDisposable
     public AnalyticsService Analytics { get; }
 
     public static DateTime Utc(int year, int month, int day) =>
-        DateTime.SpecifyKind(new DateTime(year, month, day), DateTimeKind.Utc);
+        new(year, month, day, 0, 0, 0, DateTimeKind.Utc);
 
     public Task SeedDefaultCategoriesAsync() => DefaultCategorySeeder.SeedAsync(Db);
 
