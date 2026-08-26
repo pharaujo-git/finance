@@ -1,0 +1,21 @@
+/** Currencies offered in the pickers. The API accepts any ISO 4217 code. */
+export const CURRENCIES = [
+  'USD',
+  'EUR',
+  'GBP',
+  'CHF',
+  'CAD',
+  'AUD',
+  'NZD',
+  'JPY',
+  'SEK',
+  'NOK',
+  'DKK',
+  'PLN',
+  'CZK',
+  'BRL',
+  'MXN',
+  'INR',
+  'ZAR',
+  'SGD',
+] as const

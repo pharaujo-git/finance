@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+**/TestResults/
+**/*.user
+**/*.db
+**/*.db-shm
+**/*.db-wal
+.vs/
+.vscode/
+.idea/

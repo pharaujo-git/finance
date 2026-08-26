@@ -1,0 +1,22 @@
+# Render Blueprint for the Finance Tracker API.
+# Dashboard: New -> Blueprint -> connect this repo. See docs/DEPLOYMENT.md.
+services:
+  - type: web
+    name: finance-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Neon Postgres connection string - set manually in the Render dashboard.
+      - key: DATABASE_URL
+        sync: false
+      # Generated once by Render and kept across deploys.
+      - key: JWT_SECRET
+        generateValue: true
+      # Comma-separated list of allowed CORS origins (the Vercel URL).
+      - key: ALLOWED_ORIGINS
+        sync: false

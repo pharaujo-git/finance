@@ -1,0 +1,521 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "24"
+  DOTNET_VERSION: "10.0.x"
+  DOTNET_NOLOGO: "true"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Frontend: lint + typecheck + unit tests (with coverage) + production build
+  # ---------------------------------------------------------------------------
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test (with coverage)
+        run: npm test -- --run --coverage
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload coverage (lcov)
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/lcov.info
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 2. Backend: fast correctness signal (warnings are errors + tests w/ coverage).
+  #    The sonarqube job re-runs build/test inside the scanner wrapper; this job
+  #    exists so a plain compile/test failure surfaces quickly and cheaply.
+  # ---------------------------------------------------------------------------
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore backend/FinanceTracker.sln
+
+      - name: Build (warnings as errors)
+        run: dotnet build backend/FinanceTracker.sln -c Release --no-restore -warnaserror
+
+      - name: Test (with coverage)
+        run: |
+          dotnet test backend/FinanceTracker.sln \
+            -c Release --no-build \
+            --logger "trx;LogFileName=test-results.trx" \
+            --results-directory ./backend-test-results \
+            --collect:"XPlat Code Coverage"
+
+      - name: Upload test results and coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: backend-test-results
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 3. SonarQube: boot an EPHEMERAL SonarQube Community server, bootstrap a
+  #    custom quality gate, scan backend + frontend, and FAIL the job if the
+  #    gate fails (sonar.qualitygate.wait=true makes the scanners fail hard).
+  # ---------------------------------------------------------------------------
+  sonarqube:
+    name: SonarQube quality gate
+    runs-on: ubuntu-latest
+    needs: [frontend, backend]
+    timeout-minutes: 30
+
+    services:
+      sonarqube:
+        image: sonarqube:community
+        env:
+          # The GitHub runner's vm.max_map_count is below what Elasticsearch
+          # wants; disabling the bootstrap checks lets the embedded ES start.
+          SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+        ports:
+          - 9000:9000
+
+    env:
+      SONAR_URL: http://localhost:9000
+      BACKEND_PROJECT_KEY: finance-backend
+      FRONTEND_PROJECT_KEY: finance-frontend
+      QUALITY_GATE_NAME: ci-gate
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history gives Sonar accurate SCM blame / new-code detection.
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Java (required by the Sonar scanners)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Wait for SonarQube to be UP
+        run: |
+          set -euo pipefail
+          echo "Waiting for SonarQube at ${SONAR_URL} ..."
+          deadline=$(( $(date +%s) + 300 ))   # ~5 minutes
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            status="$(curl -fsS --max-time 10 "${SONAR_URL}/api/system/status" 2>/dev/null | jq -r '.status // "STARTING"' || echo "DOWN")"
+            echo "  status=${status}"
+            if [ "$status" = "UP" ]; then
+              echo "SonarQube is UP."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::SonarQube did not reach status UP within 5 minutes."
+          docker ps -a || true
+          exit 1
+
+      # -----------------------------------------------------------------------
+      # Bootstrap the fresh instance: rotate the default admin password, mint a
+      # CI token, and install a custom quality gate as the instance default.
+      #
+      # Why OVERALL-code conditions: this server is brand new on every run, so
+      # every line of code is "new code" only in the sense that there is no
+      # previous analysis to diff against -- the standard "on New Code"
+      # conditions therefore have nothing to compare and never trigger. Overall
+      # ("on Overall Code") conditions are what make the gate actually bite.
+      # -----------------------------------------------------------------------
+      - name: Bootstrap SonarQube (admin password, CI token, quality gate)
+        run: |
+          set -euo pipefail
+
+          SONAR_URL="${SONAR_URL:-http://localhost:9000}"
+          GATE="${QUALITY_GATE_NAME}"
+          BODY_FILE="$(mktemp)"
+
+          # --- tiny HTTP helper: retries transient failures, echoes the body ---
+          # usage: api <METHOD> <PATH> [curl args...]   (auth taken from $AUTH)
+          api() {
+            local method="$1" path="$2"; shift 2
+            local attempt code
+            for attempt in 1 2 3 4 5; do
+              code="$(curl -sS -o "$BODY_FILE" -w '%{http_code}' \
+                        --max-time 60 \
+                        -X "$method" -u "$AUTH" \
+                        "${SONAR_URL}${path}" "$@" || echo 000)"
+              case "$code" in
+                2*)
+                  cat "$BODY_FILE"
+                  return 0
+                  ;;
+                000|429|5*)
+                  # transient: connection reset, throttling, server hiccup
+                  echo "  [api] ${method} ${path} -> HTTP ${code} (attempt ${attempt}/5), retrying..." >&2
+                  sleep $(( attempt * 3 ))
+                  ;;
+                *)
+                  # deterministic client error: no point retrying
+                  echo "  [api] ${method} ${path} -> HTTP ${code}" >&2
+                  cat "$BODY_FILE" >&2 || true
+                  echo >&2
+                  return 1
+                  ;;
+              esac
+            done
+            echo "  [api] ${method} ${path} failed after 5 attempts" >&2
+            return 1
+          }
+
+          # --- (a) rotate the default admin password -------------------------
+          # Recent SonarQube versions refuse most authenticated calls while the
+          # admin account still uses the factory password. The new password is
+          # random, lives only in this step's environment, and is masked in logs.
+          NEW_ADMIN_PASSWORD="$(openssl rand -hex 20)Aa1!"
+          echo "::add-mask::${NEW_ADMIN_PASSWORD}"
+
+          AUTH="admin:admin"
+          echo "Rotating the admin password..."
+          if api POST /api/users/change_password \
+               --data-urlencode "login=admin" \
+               --data-urlencode "previousPassword=admin" \
+               --data-urlencode "password=${NEW_ADMIN_PASSWORD}" >/dev/null; then
+            AUTH="admin:${NEW_ADMIN_PASSWORD}"
+            echo "  admin password rotated."
+          else
+            # Idempotency: the password may already have been changed (re-run of
+            # the step against a still-running container). Fall back to the
+            # factory credentials and keep going if they still work.
+            echo "  password change rejected; falling back to the default credentials."
+            AUTH="admin:admin"
+            api GET /api/authentication/validate >/dev/null
+            jq -e '.valid == true' "$BODY_FILE" >/dev/null \
+              || { echo "::error::Cannot authenticate against SonarQube as admin."; exit 1; }
+          fi
+
+          # --- (b) mint a CI token -------------------------------------------
+          # Token names must be unique per user, so include the run id to keep
+          # the step idempotent across retries.
+          TOKEN_NAME="ci-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}"
+          echo "Generating analysis token '${TOKEN_NAME}'..."
+          api POST /api/user_tokens/generate --data-urlencode "name=${TOKEN_NAME}" >/dev/null
+          SONAR_TOKEN="$(jq -r '.token // empty' "$BODY_FILE")"
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "::error::Failed to generate a SonarQube analysis token."
+            exit 1
+          fi
+          echo "::add-mask::${SONAR_TOKEN}"
+          # Hand the token (and admin auth) to the later steps in this job.
+          {
+            echo "SONAR_TOKEN=${SONAR_TOKEN}"
+            echo "SONAR_ADMIN_AUTH=${AUTH}"
+          } >> "$GITHUB_ENV"
+
+          # --- (c) create the custom quality gate ----------------------------
+          # Note on instance mode: fresh 10.8+ instances run in Multi-Quality
+          # Rule mode, where `bugs`/`vulnerabilities`/`*_rating` are flagged as
+          # legacy. Both metric families are still computed on every analysis
+          # and both are still accepted as gate conditions, so no mode switch is
+          # needed (`sonar.multi-quality-mode.enabled` is not settable through
+          # api/settings/set anyway). The per-condition fallbacks below cover
+          # any build that does start rejecting the legacy metrics.
+          echo "Creating quality gate '${GATE}'..."
+          if api POST /api/qualitygates/create --data-urlencode "name=${GATE}" >/dev/null; then
+            echo "  gate created."
+          else
+            # Already exists (re-run) -> verify it is really there.
+            api GET /api/qualitygates/show -G --data-urlencode "name=${GATE}" >/dev/null \
+              || { echo "::error::Could not create or find quality gate '${GATE}'."; exit 1; }
+            echo "  gate already exists, reusing it."
+          fi
+
+          # A brand-new gate is seeded with the built-in "Sonar way" Clean as You
+          # Code conditions (new_violations > 0, new_coverage < 80, ...). On this
+          # throwaway server the very first analysis has no baseline to diff
+          # against, so those new-code conditions would either never trigger or
+          # -- worse -- treat the whole codebase as "new" and fail on contact.
+          # Strip them so the gate is exactly the overall-code set defined below.
+          # (This also makes the step idempotent when the gate is reused.)
+          echo "Removing inherited conditions..."
+          api GET /api/qualitygates/show -G --data-urlencode "name=${GATE}" >/dev/null
+          for cond_id in $(jq -r '.conditions[]?.id' "$BODY_FILE"); do
+            if api POST /api/qualitygates/delete_condition --data-urlencode "id=${cond_id}" >/dev/null; then
+              echo "  - removed condition ${cond_id}"
+            else
+              echo "::warning::Could not remove inherited condition ${cond_id}."
+            fi
+          done
+
+          # add_condition <metric> <op> <error> [fallback_metric]
+          # Deprecated metrics can be rejected depending on the instance mode,
+          # so each classic metric may name a modern equivalent to fall back to.
+          CONDITIONS_ADDED=0
+          add_condition() {
+            local metric="$1" op="$2" err="$3" fallback="${4:-}"
+            if api POST /api/qualitygates/create_condition \
+                 --data-urlencode "gateName=${GATE}" \
+                 --data-urlencode "metric=${metric}" \
+                 --data-urlencode "op=${op}" \
+                 --data-urlencode "error=${err}" >/dev/null; then
+              echo "  + ${metric} ${op} ${err}"
+              CONDITIONS_ADDED=$((CONDITIONS_ADDED + 1))
+              return 0
+            fi
+            if [ -n "$fallback" ]; then
+              echo "  ! ${metric} rejected, trying ${fallback}"
+              if api POST /api/qualitygates/create_condition \
+                   --data-urlencode "gateName=${GATE}" \
+                   --data-urlencode "metric=${fallback}" \
+                   --data-urlencode "op=${op}" \
+                   --data-urlencode "error=${err}" >/dev/null; then
+                echo "  + ${fallback} ${op} ${err}"
+                CONDITIONS_ADDED=$((CONDITIONS_ADDED + 1))
+                return 0
+              fi
+            fi
+            echo "::warning::Quality gate condition '${metric} ${op} ${err}' could not be added."
+            return 0
+          }
+
+          echo "Adding OVERALL-code conditions..."
+          add_condition bugs                     GT 0  software_quality_reliability_issues
+          add_condition vulnerabilities          GT 0  software_quality_security_issues
+          add_condition security_rating          GT 1  software_quality_security_rating
+          add_condition reliability_rating       GT 1  software_quality_reliability_rating
+          add_condition coverage                 LT 60
+          add_condition duplicated_lines_density GT 5
+
+          if [ "$CONDITIONS_ADDED" -lt 2 ]; then
+            echo "::error::Quality gate '${GATE}' has ${CONDITIONS_ADDED} condition(s); refusing to run with a toothless gate."
+            exit 1
+          fi
+
+          # --- (d) make it the instance default ------------------------------
+          # Projects are auto-provisioned by the scanners *after* this point, so
+          # they inherit this gate automatically -- no per-project association
+          # call is needed.
+          echo "Setting '${GATE}' as the default quality gate..."
+          api POST /api/qualitygates/set_as_default --data-urlencode "name=${GATE}" >/dev/null
+
+          echo "Final gate definition:"
+          api GET /api/qualitygates/show -G --data-urlencode "name=${GATE}" \
+            | jq -r '.conditions[] | "  \(.metric) \(.op) \(.error)"'
+
+      # ----------------------------- Backend scan -----------------------------
+      - name: Install dotnet-sonarscanner
+        run: |
+          set -euo pipefail
+          # --allow-roll-forward lets the tool (built for an older TFM) run on
+          # the .NET 10 runtime installed by setup-dotnet.
+          dotnet tool install --global dotnet-sonarscanner --allow-roll-forward
+          echo "${HOME}/.dotnet/tools" >> "$GITHUB_PATH"
+
+      - name: Backend scan (dotnet-sonarscanner + quality gate)
+        run: |
+          set -euo pipefail
+          dotnet-sonarscanner begin \
+            /k:"${BACKEND_PROJECT_KEY}" \
+            /n:"Finance API" \
+            /d:sonar.host.url="${SONAR_URL}" \
+            /d:sonar.token="${SONAR_TOKEN}" \
+            /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" \
+            /d:sonar.qualitygate.wait=true \
+            /d:sonar.qualitygate.timeout=300
+
+          dotnet build backend/FinanceTracker.sln -c Release
+
+          # coverlet.collector understands the `Format=` parameter, so the
+          # collector produces coverage.opencover.xml alongside the Cobertura
+          # default -- no coverlet.msbuild package required.
+          dotnet test backend/FinanceTracker.sln \
+            -c Release --no-build \
+            --collect:"XPlat Code Coverage;Format=opencover"
+
+          # `end` uploads the report and, thanks to qualitygate.wait, blocks on
+          # the gate and exits non-zero when it fails.
+          dotnet-sonarscanner end /d:sonar.token="${SONAR_TOKEN}"
+
+      # ----------------------------- Frontend scan ----------------------------
+      - name: Download frontend coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage
+
+      - name: Frontend scan (sonar-scanner + quality gate)
+        run: |
+          set -euo pipefail
+          ls -l frontend/coverage/lcov.info
+          # @sonar/scan is the maintained npm distribution of the Sonar scanner
+          # CLI; running it via npx avoids the global-bin naming churn and it
+          # bootstraps the scanner engine from the server itself.
+          npx --yes @sonar/scan@5 \
+            -Dsonar.projectKey="${FRONTEND_PROJECT_KEY}" \
+            -Dsonar.projectName="Finance Frontend" \
+            -Dsonar.host.url="${SONAR_URL}" \
+            -Dsonar.token="${SONAR_TOKEN}" \
+            -Dsonar.sources=frontend/src \
+            -Dsonar.tests=frontend/src \
+            -Dsonar.test.inclusions="frontend/src/**/*.test.*,frontend/src/**/*.spec.*" \
+            -Dsonar.exclusions="frontend/src/**/*.test.*" \
+            -Dsonar.javascript.lcov.reportPaths=frontend/coverage/lcov.info \
+            -Dsonar.qualitygate.wait=true \
+            -Dsonar.qualitygate.timeout=300
+
+      # --------------------------- Gate status report -------------------------
+      - name: Report quality gate status
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -z "${SONAR_TOKEN:-}" ]; then
+            echo "No analysis token: bootstrap did not complete."
+            exit 0
+          fi
+          report() {
+            local key="$1" body status
+            body="$(curl -sS --max-time 30 -u "${SONAR_TOKEN}:" \
+                     -G "${SONAR_URL}/api/qualitygates/project_status" \
+                     --data-urlencode "projectKey=${key}" || echo '{}')"
+            status="$(printf '%s' "$body" | jq -r '.projectStatus.status // "UNKNOWN"')"
+            echo "### ${key}: ${status}" >> "$GITHUB_STEP_SUMMARY"
+            echo "${key}: ${status}"
+            printf '%s' "$body" \
+              | jq -r '.projectStatus.conditions[]? | "  \(.status)  \(.metricKey) \(.comparator) \(.errorThreshold) (actual: \(.actualValue // "n/a"))"' \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+          }
+          echo "## SonarQube quality gate" >> "$GITHUB_STEP_SUMMARY"
+          report "${BACKEND_PROJECT_KEY}"
+          report "${FRONTEND_PROJECT_KEY}"
+
+  # ---------------------------------------------------------------------------
+  # 4. Deploy the frontend to Vercel production (main pushes only, after the
+  #    quality gate has passed). The backend deploys itself from Render's
+  #    blueprint (see render.yaml / docs/DEPLOYMENT.md).
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy frontend (Vercel)
+    runs-on: ubuntu-latest
+    needs: sonarqube
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check for Vercel token
+        id: token
+        working-directory: .
+        run: |
+          if [ -n "${VERCEL_TOKEN}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::VERCEL_TOKEN secret is not set; skipping the Vercel deploy (see docs/DEPLOYMENT.md)."
+          fi
+
+      - name: Checkout
+        if: steps.token.outputs.present == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        if: steps.token.outputs.present == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Vercel CLI
+        if: steps.token.outputs.present == 'true'
+        run: npm i -g vercel
+
+      - name: Pull Vercel production environment
+        if: steps.token.outputs.present == 'true'
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build
+        if: steps.token.outputs.present == 'true'
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+
+      - name: Deploy
+        id: deploy
+        if: steps.token.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          url="$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")"
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+          echo "Deployed to ${url}"
+          {
+            echo "## Vercel deployment"
+            echo "${url}"
+          } >> "$GITHUB_STEP_SUMMARY"
