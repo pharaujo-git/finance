@@ -1,10 +1,13 @@
 // Package pgtest gives an integration test a throwaway Postgres schema built
 // from the real baseline migration. Nothing outside tests should import it.
 //
-//	docker run --rm -d -p 5433:5432 -e POSTGRES_PASSWORD=finance \
+//	docker run --rm -d -p 5433:5432 -e POSTGRES_HOST_AUTH_METHOD=trust \
 //	  -e POSTGRES_USER=finance -e POSTGRES_DB=finance --name finance-pg postgres:16
-//	TEST_DATABASE_URL=postgres://finance:finance@localhost:5433/finance?sslmode=disable \
+//	TEST_DATABASE_URL=postgres://finance@localhost:5433/finance?sslmode=disable \
 //	  go test ./...
+//
+// Trust auth keeps a password out of the connection string, matching how the
+// CI service container is configured.
 //
 // Port 5433 rather than 5432 because a Homebrew Postgres commonly owns 5432 on
 // a developer machine (see db/README.md). Without the variable every test that
