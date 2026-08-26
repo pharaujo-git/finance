@@ -1,0 +1,16 @@
+{
+  "generatedAt": "2026-08-26T16:45:05Z",
+  "source": "backend/FinanceTracker.Api run in SQLite mode (no DATABASE_URL, no JWT_SECRET) on http://localhost:5099, POST /api/auth/register",
+  "password": "CrossBackendP@ss1",
+  "passwordHash": "AQAAAAIAAYagAAAAEMhlGjx27kNUThcTCuCyF4bUQ1/+e4LG7sd/dPzP0BJ6flKupQ1n+0RNfSWkbtKjQQ==",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJmaW5hbmNlLXRyYWNrZXIiLCJpc3MiOiJmaW5hbmNlLXRyYWNrZXIiLCJleHAiOjE3ODgzNjc1MDUsImlhdCI6MTc4Nzc2MjcwNSwibmJmIjoxNzg3NzYyNzA1LCJzdWIiOiJkY2Q3ODBkYi0yM2E1LTQ1NjYtYjAyZS0wMTY4M2FiZDdjYjAiLCJlbWFpbCI6ImZpeHR1cmVAZXhhbXBsZS5jb20iLCJqdGkiOiI1ZTQwMGM5Yi0xMDFkLTQ2NmMtODgwYi0yMTZhOWVkMGNiM2YifQ.kBwWqc6RKB2xzyXJX17F9NW8h7OfxBMTFUMugLwakv4",
+  "userId": "dcd780db-23a5-4566-b02e-01683abd7cb0",
+  "email": "fixture@example.com",
+  "name": "Fixture User",
+  "issuedAtUnix": 1787762705,
+  "expiresAtUnix": 1788367505,
+  "problemJson": {
+    "conflict": "{\"title\":\"Conflict\",\"status\":409,\"detail\":\"An account with that email already exists.\",\"instance\":\"/api/auth/register\"}",
+    "unauthorized": "{\"title\":\"Unauthorized\",\"status\":401,\"detail\":\"Invalid email or password.\",\"instance\":\"/api/auth/login\"}"
+  }
+}

@@ -1,4 +1,4 @@
-# Render Blueprint for the Finance Tracker API.
+# Render Blueprint for the Finance Tracker APIs (.NET and Go).
 # Dashboard: New -> Blueprint -> connect this repo. See docs/DEPLOYMENT.md.
 services:
   - type: web
@@ -14,9 +14,45 @@ services:
       # Neon Postgres connection string - set manually in the Render dashboard.
       - key: DATABASE_URL
         sync: false
-      # Generated once by Render and kept across deploys.
-      - key: JWT_SECRET
-        generateValue: true
+      # JWT_SECRET now comes from the shared group so both APIs sign and accept
+      # the same tokens. See the note on finance-shared below.
+      - fromGroup: finance-shared
       # Comma-separated list of allowed CORS origins (the Vercel URL).
       - key: ALLOWED_ORIGINS
         sync: false
+
+  # Second implementation of the same API, same database, same tokens. The
+  # frontend picks between them at run time (VITE_API_URL_DOTNET / _GO).
+  - type: web
+    name: finance-api-go
+    runtime: docker
+    dockerfilePath: ./backend-go/Dockerfile
+    dockerContext: ./backend-go
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Same Neon connection string as finance-api - set it manually here too.
+      - key: DATABASE_URL
+        sync: false
+      - fromGroup: finance-shared
+      # Must list the same Vercel origin(s) as finance-api.
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+# Shared secrets. `- fromGroup: <name>` attaches every variable in the group to
+# the service, so both APIs receive the same JWT_SECRET.
+#
+# ONE-TIME MANUAL STEP: finance-api already runs with a JWT_SECRET that Render
+# generated per-service. Before applying this blueprint, copy that CURRENT value
+# out of the finance-api dashboard and paste it into the finance-shared group
+# (Environment -> Environment Groups -> finance-shared -> JWT_SECRET), replacing
+# the value Render generates here. Skip it and the secret changes once, which
+# invalidates every issued token and logs every user out.
+envVarGroups:
+  - name: finance-shared
+    envVars:
+      # Generated once by Render and kept across deploys - see the note above.
+      - key: JWT_SECRET
+        generateValue: true

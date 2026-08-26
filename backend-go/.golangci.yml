@@ -1,0 +1,74 @@
+# golangci-lint v2 configuration. No binary is installed on the development
+# machine at the time of writing, so CI is the first place this runs:
+#   golangci-lint run ./...   (from backend-go/)
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose
+    - copyloopvar
+    - errorlint
+    - gocritic
+    - gosec
+    - misspell
+    - nilerr
+    - noctx
+    - prealloc
+    - revive
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wastedassign
+    - whitespace
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+        # `if err := f(); err != nil` inside a function that already holds an
+        # `err` is idiomatic Go, and that is all this analyzer finds here.
+        - shadow
+    revive:
+      rules:
+        - name: exported
+          arguments: [checkPrivateReceivers]
+        - name: package-comments
+    gosec:
+      excludes:
+        # G115 (integer conversion overflow) fires on the bounds-checked
+        # conversions in the Identity v3 blob parser.
+        - G115
+
+  exclusions:
+    presets:
+      - comments
+      - std-error-handling
+    rules:
+      # Test files may assert on values without ceremony.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - noctx
+          - unparam
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/pharaujo/finance/backend-go
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

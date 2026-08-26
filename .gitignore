@@ -17,6 +17,9 @@ backend/**/coverage/
 *.db-shm
 *.db-wal
 
+# Go / backend-go
+backend-go/coverage.out
+
 # Vercel
 .vercel/
 
@@ -31,3 +34,7 @@ Thumbs.db
 .vscode/
 .vercel
 .env*
+
+# Local secrets in any subdirectory (db/.env for dbmate), but never the checked-in samples.
+# This negation must stay last: a later .env* line would re-ignore the examples.
+!.env.example

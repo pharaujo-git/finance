@@ -113,14 +113,165 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # 3. SonarQube: boot an EPHEMERAL SonarQube Community server, bootstrap a
-  #    custom quality gate, scan backend + frontend, and FAIL the job if the
-  #    gate fails (sonar.qualitygate.wait=true makes the scanners fail hard).
+  # 3. Backend (Go): the same API in Go, deployed beside the .NET one. Format,
+  #    vet, lint and race-tested here; the sonarqube job consumes the coverage
+  #    profile this job uploads.
+  # ---------------------------------------------------------------------------
+  backend-go:
+    name: Backend (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend-go
+
+    services:
+      # internal/pgtest builds a throwaway schema per test from db/migrations'
+      # baseline. Without TEST_DATABASE_URL every test that needs Postgres
+      # SKIPS, which silently leaves the whole persistence layer uncovered
+      # (51% overall instead of 62%) and drops the Sonar gate below its floor.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: finance
+          POSTGRES_USER: finance
+          POSTGRES_PASSWORD: finance
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U finance -d finance"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Deliberately not DATABASE_URL -- see internal/pgtest.
+      TEST_DATABASE_URL: postgres://finance:finance@localhost:5432/finance?sslmode=disable
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          # The toolchain version is pinned in go.mod; caching keys off go.sum.
+          go-version-file: backend-go/go.mod
+          cache-dependency-path: backend-go/go.sum
+
+      - name: Format check (gofmt)
+        run: |
+          set -euo pipefail
+          # gofmt -l prints the files it *would* rewrite and exits 0 either way.
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt would rewrite these files; run 'gofmt -w .' in backend-go/:"
+            echo "$unformatted"
+            exit 1
+          fi
+          echo "All files are gofmt-clean."
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Lint (golangci-lint)
+        # The action installs its own binary, so it needs the directory as an
+        # input -- `defaults.run.working-directory` does not apply to actions.
+        # v2.x matches the `version: "2"` schema of backend-go/.golangci.yml.
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13
+          working-directory: backend-go
+
+      - name: Test (race + coverage)
+        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+
+      - name: Upload coverage profile
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-go-coverage
+          path: backend-go/coverage.out
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 4. Migrations: apply db/migrations to a throwaway Postgres with dbmate and
+  #    prove the three properties the deploy relies on -- they apply cleanly,
+  #    re-running is a no-op, and every migration can be rolled back.
+  # ---------------------------------------------------------------------------
+  migrations:
+    name: Migrations (dbmate)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: finance
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d finance"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # The service container is published on the runner's localhost.
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/finance?sslmode=disable
+      # db/schema.sql is not checked in; the migrations are the source of truth.
+      DBMATE_NO_DUMP_SCHEMA: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install dbmate
+        run: |
+          set -euo pipefail
+          sudo curl -fsSL -o /usr/local/bin/dbmate \
+            https://github.com/amacneil/dbmate/releases/latest/download/dbmate-linux-amd64
+          sudo chmod +x /usr/local/bin/dbmate
+          dbmate --version
+
+      # dbmate resolves ./db/migrations relative to the working directory, so
+      # every call below runs from the repo root (see db/README.md).
+      - name: Apply migrations
+        run: dbmate up
+
+      - name: Re-apply (must be a no-op)
+        run: |
+          set -euo pipefail
+          dbmate up
+          status="$(dbmate status)"
+          echo "$status"
+          echo "$status" | grep -q 'Pending: 0' \
+            || { echo "::error::Migrations are still pending after 'dbmate up'."; exit 1; }
+
+      - name: Roll back and re-apply (reversibility)
+        run: |
+          set -euo pipefail
+          # Two migrations today; down/down/up/up walks the whole stack both ways.
+          dbmate down
+          dbmate down
+          dbmate status
+          dbmate up
+          status="$(dbmate status)"
+          echo "$status"
+          echo "$status" | grep -q 'Pending: 0' \
+            || { echo "::error::Re-applying after rollback left pending migrations."; exit 1; }
+
+  # ---------------------------------------------------------------------------
+  # 5. SonarQube: boot an EPHEMERAL SonarQube Community server, bootstrap a
+  #    custom quality gate, scan backend + backend-go + frontend, and FAIL the
+  #    job if the gate fails (sonar.qualitygate.wait=true makes the scanners
+  #    fail hard).
   # ---------------------------------------------------------------------------
   sonarqube:
     name: SonarQube quality gate
     runs-on: ubuntu-latest
-    needs: [frontend, backend]
+    needs: [frontend, backend, backend-go, migrations]
     timeout-minutes: 30
 
     services:
@@ -136,6 +287,7 @@ jobs:
     env:
       SONAR_URL: http://localhost:9000
       BACKEND_PROJECT_KEY: finance-backend
+      BACKEND_GO_PROJECT_KEY: finance-backend-go
       FRONTEND_PROJECT_KEY: finance-frontend
       QUALITY_GATE_NAME: ci-gate
 
@@ -383,7 +535,7 @@ jobs:
             /d:sonar.host.url="${SONAR_URL}" \
             /d:sonar.token="${SONAR_TOKEN}" \
             /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" \
-            /d:sonar.exclusions="frontend/**" \
+            /d:sonar.exclusions="frontend/**,backend-go/**" \
             /d:sonar.qualitygate.wait=true \
             /d:sonar.qualitygate.timeout=300
 
@@ -399,6 +551,36 @@ jobs:
           # `end` uploads the report and, thanks to qualitygate.wait, blocks on
           # the gate and exits non-zero when it fails.
           dotnet-sonarscanner end /d:sonar.token="${SONAR_TOKEN}"
+
+      # ---------------------------- Backend (Go) scan -------------------------
+      - name: Download backend-go coverage
+        uses: actions/download-artifact@v8
+        with:
+          name: backend-go-coverage
+          path: backend-go
+
+      - name: Backend (Go) scan (sonar-scanner + quality gate)
+        run: |
+          set -euo pipefail
+          ls -l backend-go/coverage.out
+          # `go test` writes coverage paths as import paths
+          # (github.com/pharaujo/finance/backend-go/internal/...). The scanner
+          # runs from the repo root and indexes files as backend-go/..., so
+          # strip the module prefix to make the two match.
+          sed -i 's#^github\.com/pharaujo/finance/##' backend-go/coverage.out
+          npx --yes @sonar/scan@5 \
+            -Dsonar.projectKey="${BACKEND_GO_PROJECT_KEY}" \
+            -Dsonar.projectName="Finance API (Go)" \
+            -Dsonar.host.url="${SONAR_URL}" \
+            -Dsonar.token="${SONAR_TOKEN}" \
+            -Dsonar.sources=backend-go \
+            -Dsonar.tests=backend-go \
+            -Dsonar.test.inclusions="**/*_test.go" \
+            -Dsonar.exclusions="**/*_test.go" \
+            -Dsonar.coverage.exclusions="backend-go/internal/apptest/**,backend-go/internal/fixtures/**,backend-go/internal/pgtest/**" \
+            -Dsonar.go.coverage.reportPaths=backend-go/coverage.out \
+            -Dsonar.qualitygate.wait=true \
+            -Dsonar.qualitygate.timeout=300
 
       # ----------------------------- Frontend scan ----------------------------
       - name: Download frontend coverage
@@ -450,17 +632,74 @@ jobs:
           }
           echo "## SonarQube quality gate" >> "$GITHUB_STEP_SUMMARY"
           report "${BACKEND_PROJECT_KEY}"
+          report "${BACKEND_GO_PROJECT_KEY}"
           report "${FRONTEND_PROJECT_KEY}"
 
   # ---------------------------------------------------------------------------
-  # 4. Deploy the frontend to Vercel production (main pushes only, after the
-  #    quality gate has passed). The backend deploys itself from Render's
-  #    blueprint (see render.yaml / docs/DEPLOYMENT.md).
+  # 6. Migrate the production database (main pushes only, after the gate). This
+  #    runs BEFORE the deploy so the schema is never behind the code that needs
+  #    it; both APIs read a database they never reshape themselves.
+  # ---------------------------------------------------------------------------
+  migrate-prod:
+    name: Migrate production database
+    runs-on: ubuntu-latest
+    needs: sonarqube
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    env:
+      # Neon UNPOOLED endpoint -- the pooler cannot run DDL reliably.
+      # See docs/DEPLOYMENT.md and db/README.md.
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      DBMATE_NO_DUMP_SCHEMA: "true"
+    steps:
+      - name: Check for the database URL
+        id: secret
+        run: |
+          if [ -n "${NEON_DATABASE_URL}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::NEON_DATABASE_URL secret is not set; skipping the production migration (see docs/DEPLOYMENT.md)."
+          fi
+
+      - name: Checkout
+        if: steps.secret.outputs.present == 'true'
+        uses: actions/checkout@v7
+
+      - name: Install dbmate
+        if: steps.secret.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          sudo curl -fsSL -o /usr/local/bin/dbmate \
+            https://github.com/amacneil/dbmate/releases/latest/download/dbmate-linux-amd64
+          sudo chmod +x /usr/local/bin/dbmate
+          dbmate --version
+
+      - name: Apply pending migrations
+        if: steps.secret.outputs.present == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          # No-op when nothing is pending. The existing database must have been
+          # baselined once by hand first -- see db/README.md.
+          dbmate up
+          {
+            echo "## Production migrations"
+            echo '```'
+            dbmate status
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # 7. Deploy the frontend to Vercel production (main pushes only, after the
+  #    quality gate has passed and the database is migrated). The backends
+  #    deploy themselves from Render's blueprint (see render.yaml /
+  #    docs/DEPLOYMENT.md).
   # ---------------------------------------------------------------------------
   deploy:
     name: Deploy frontend (Vercel)
     runs-on: ubuntu-latest
-    needs: sonarqube
+    needs: [sonarqube, migrate-prod]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: production
