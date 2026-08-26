@@ -1,0 +1,31 @@
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/coverage/
+*.local
+.env
+.env.*
+!.env.example
+
+# .NET / backend
+bin/
+obj/
+*.user
+backend/**/TestResults/
+backend/**/coverage/
+*.db
+*.db-shm
+*.db-wal
+
+# Vercel
+.vercel/
+
+# SonarQube scanner work dirs
+.sonarqube/
+.scannerwork/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
