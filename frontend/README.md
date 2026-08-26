@@ -6,12 +6,24 @@ React 19 + Vite + TypeScript client for the Finance Tracker API.
 
 ```bash
 npm install
-cp .env.example .env.local   # point VITE_API_URL at your API
+cp .env.example .env.local   # point the API URLs at your backends
 npm run dev                  # http://localhost:5173
 ```
 
-`VITE_API_URL` is the API origin **without** the `/api` suffix — the fetch
-wrapper adds it. It defaults to `http://localhost:5000`.
+## API backends
+
+The app can talk to either backend implementation; the choice is made with the
+segmented control on the login page and remembered per device under the
+`ft.backend` localStorage key (default: `.NET`).
+
+| Variable               | Used by     | Falls back to                            |
+| ---------------------- | ----------- | ---------------------------------------- |
+| `VITE_API_URL_DOTNET`  | .NET API    | `VITE_API_URL`, then `localhost:5000`    |
+| `VITE_API_URL_GO`      | Go API      | `http://localhost:8081`                  |
+| `VITE_API_URL`         | .NET only   | `http://localhost:5000`                  |
+
+Each value is an origin **without** a trailing slash and **without** the `/api`
+suffix — the fetch wrapper adds it. Settings shows the active backend read-only.
 
 ## Scripts
 

@@ -1,8 +1,5 @@
+import { apiBase } from './backend'
 import { clearToken, getToken } from './token'
-
-export const API_BASE =
-  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, '') ||
-  'http://localhost:5000'
 
 /** Requests slower than this are assumed to be hitting a cold-starting server. */
 export const COLD_START_MS = 2500
@@ -112,7 +109,7 @@ async function send(path: string, options: RequestOptions): Promise<Response> {
 
   trackStart()
   try {
-    const response = await fetch(`${API_BASE}/api${path}`, {
+    const response = await fetch(`${apiBase()}/api${path}`, {
       method: options.method ?? 'GET',
       headers,
       body,

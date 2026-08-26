@@ -7,6 +7,7 @@ import {
   setUnauthorizedHandler,
   toQuery,
 } from './api'
+import { setBackend } from './backend'
 import { clearToken, getToken, setToken } from './token'
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -42,6 +43,7 @@ describe('apiRequest', () => {
 
   afterEach(() => {
     setUnauthorizedHandler(null)
+    vi.unstubAllEnvs()
   })
 
   it('prefixes /api and parses JSON', async () => {
@@ -50,6 +52,22 @@ describe('apiRequest', () => {
 
     expect(result).toEqual({ ok: true })
     expect(spy.mock.calls[0][0]).toMatch(/\/api\/accounts$/)
+  })
+
+  it('targets the origin of the selected backend', async () => {
+    vi.stubEnv('VITE_API_URL_DOTNET', 'https://dotnet.example.com')
+    vi.stubEnv('VITE_API_URL_GO', 'https://go.example.com')
+
+    const dotnetSpy = mockFetch(jsonResponse([]))
+    await api.get('/accounts')
+    expect(dotnetSpy.mock.calls[0][0]).toBe(
+      'https://dotnet.example.com/api/accounts',
+    )
+
+    setBackend('go')
+    const goSpy = mockFetch(jsonResponse([]))
+    await api.get('/accounts')
+    expect(goSpy.mock.calls[0][0]).toBe('https://go.example.com/api/accounts')
   })
 
   it('omits the Authorization header when there is no token', async () => {

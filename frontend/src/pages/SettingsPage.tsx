@@ -24,6 +24,7 @@ import { useAuth } from '@/context/auth-context'
 import { useTheme } from '@/context/theme-context'
 import { useConfirm, useEditor } from '@/hooks/useEditor'
 import { useToastAction } from '@/hooks/useToastAction'
+import { BACKEND_LABELS, getBackend } from '@/lib/backend'
 import { CURRENCIES } from '@/lib/currencies'
 import { requiredString } from '@/lib/validation'
 import type { Category, CategoryInput } from '@/types'
@@ -117,6 +118,29 @@ function AppearanceCard() {
         >
           Switch to {theme === 'dark' ? 'light' : 'dark'}
         </Button>
+      </div>
+    </Card>
+  )
+}
+
+function BackendCard() {
+  const backend = getBackend()
+  return (
+    <Card>
+      <CardHeader
+        title="API backend"
+        subtitle="Picked on the sign-in screen and remembered on this device"
+      />
+      <div className="flex items-center justify-between gap-4 p-5">
+        <div>
+          <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+            {BACKEND_LABELS[backend]}
+          </p>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            Requests from this browser go to the {BACKEND_LABELS[backend]} API.
+          </p>
+        </div>
+        <Badge tone="info">{BACKEND_LABELS[backend]}</Badge>
       </div>
     </Card>
   )
@@ -304,11 +328,12 @@ export function SettingsPage() {
     <>
       <PageHeader
         title="Settings"
-        description="Profile, appearance and your category list."
+        description="Profile, appearance, API backend and your category list."
       />
       <div className="grid gap-4 xl:grid-cols-2">
         <ProfileCard />
         <AppearanceCard />
+        <BackendCard />
       </div>
       <CategoriesCard />
     </>

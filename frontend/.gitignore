@@ -27,3 +27,4 @@ dist-ssr
 coverage
 .vercel
 .env*
+!.env.example

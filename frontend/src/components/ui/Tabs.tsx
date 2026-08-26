@@ -9,15 +9,18 @@ export function Tabs<T extends string>({
   items,
   active,
   onChange,
+  label = 'Sections',
 }: {
   items: TabItem<T>[]
   active: T
   onChange: (id: T) => void
+  /** Accessible name for the tab list. */
+  label?: string
 }) {
   return (
     <div
       role="tablist"
-      aria-label="Sections"
+      aria-label={label}
       className="inline-flex rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900"
     >
       {items.map((item) => (

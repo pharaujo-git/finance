@@ -5,8 +5,15 @@ import { useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Field'
+import { Tabs, type TabItem } from '@/components/ui/Tabs'
 import { useAuth } from '@/context/auth-context'
 import { errorMessage } from '@/hooks/useToastAction'
+import {
+  BACKEND_LABELS,
+  getBackend,
+  setBackend,
+  type Backend,
+} from '@/lib/backend'
 import { AuthShell, FormError } from './AuthShell'
 
 const loginSchema = z.object({
@@ -22,10 +29,21 @@ const DEMO_CREDENTIALS = import.meta.env.DEV
   ? { email: 'smoke@test.dev', password: 'Passw0rd!123' }
   : null
 
+const BACKEND_TABS: TabItem<Backend>[] = [
+  { id: 'dotnet', label: BACKEND_LABELS.dotnet },
+  { id: 'go', label: BACKEND_LABELS.go },
+]
+
 export function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [backend, setActiveBackend] = useState<Backend>(getBackend)
+
+  const chooseBackend = (next: Backend) => {
+    setBackend(next)
+    setActiveBackend(next)
+  }
 
   const {
     register,
@@ -55,6 +73,18 @@ export function LoginPage() {
       footerLinkLabel="Create an account"
       footerLinkTo="/register"
     >
+      <div className="mb-5 flex flex-col items-start gap-2">
+        <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+          API backend
+        </span>
+        <Tabs
+          items={BACKEND_TABS}
+          active={backend}
+          onChange={chooseBackend}
+          label="API backend"
+        />
+      </div>
+
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
         <FormError message={submitError} />
         <Input

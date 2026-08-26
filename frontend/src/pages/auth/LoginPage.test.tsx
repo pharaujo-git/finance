@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { renderWithProviders } from '@/test/utils'
@@ -52,6 +52,42 @@ describe('LoginPage', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Invalid credentials',
+    )
+  })
+
+  it('offers the backend selector with .NET active by default', () => {
+    renderWithProviders(<LoginPage />)
+
+    const tablist = screen.getByRole('tablist', { name: 'API backend' })
+    expect(within(tablist).getByRole('tab', { name: '.NET' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(within(tablist).getByRole('tab', { name: 'Go' })).toHaveAttribute(
+      'aria-selected',
+      'false',
+    )
+  })
+
+  it('persists the backend when Go is picked', async () => {
+    renderWithProviders(<LoginPage />)
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Go' }))
+
+    expect(window.localStorage.getItem('ft.backend')).toBe('go')
+    expect(screen.getByRole('tab', { name: 'Go' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+  })
+
+  it('seeds the selector from the stored backend', () => {
+    window.localStorage.setItem('ft.backend', 'go')
+    renderWithProviders(<LoginPage />)
+
+    expect(screen.getByRole('tab', { name: 'Go' })).toHaveAttribute(
+      'aria-selected',
+      'true',
     )
   })
 

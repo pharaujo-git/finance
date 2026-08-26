@@ -100,6 +100,19 @@ describe('SettingsPage', () => {
     )
   })
 
+  it('shows the active API backend read-only', () => {
+    window.localStorage.setItem('ft.backend', 'go')
+    renderWithProviders(<SettingsPage />)
+
+    expect(screen.getByText('API backend')).toBeInTheDocument()
+    expect(
+      screen.getByText('Requests from this browser go to the Go API.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('tablist', { name: 'API backend' }),
+    ).not.toBeInTheDocument()
+  })
+
   it('toggles dark mode and persists the choice', async () => {
     renderWithProviders(<SettingsPage />)
 
