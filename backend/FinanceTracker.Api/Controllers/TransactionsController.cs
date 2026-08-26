@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Text;
-using FinanceTracker.Api.Common;
-using FinanceTracker.Api.Dtos;
-using FinanceTracker.Api.Services;
+using FinanceTracker.Application.Common;
+using FinanceTracker.Application.Dtos;
+using FinanceTracker.Application.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FinanceTracker.Api.Controllers;
@@ -63,12 +63,12 @@ public sealed class TransactionsController(TransactionService transactions, Tran
     {
         if (file is null || file.Length == 0)
         {
-            throw ApiException.BadRequest("A non-empty CSV file is required.");
+            throw AppException.BadRequest("A non-empty CSV file is required.");
         }
 
         if (file.Length > MaxUploadBytes)
         {
-            throw ApiException.BadRequest("The uploaded file is larger than 5 MB.");
+            throw AppException.BadRequest("The uploaded file is larger than 5 MB.");
         }
 
         await using var stream = file.OpenReadStream();

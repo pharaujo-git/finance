@@ -1,18 +1,21 @@
+using FinanceTracker.Application.Common;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FinanceTracker.Api.Common;
 
-/// <summary>Renders <see cref="ApiException"/> as a ProblemDetails payload.</summary>
+/// <summary>
+/// The single place where an application <see cref="ErrorKind"/> becomes an HTTP status code,
+/// rendered as a ProblemDetails payload.
+/// </summary>
 public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : IExceptionHandler
 {
-    private static readonly Dictionary<int, string> Titles = new()
+    private static readonly Dictionary<ErrorKind, (int Status, string Title)> Responses = new()
     {
-        [StatusCodes.Status400BadRequest] = "Bad Request",
-        [StatusCodes.Status401Unauthorized] = "Unauthorized",
-        [StatusCodes.Status403Forbidden] = "Forbidden",
-        [StatusCodes.Status404NotFound] = "Not Found",
-        [StatusCodes.Status409Conflict] = "Conflict",
+        [ErrorKind.Validation] = (StatusCodes.Status400BadRequest, "Bad Request"),
+        [ErrorKind.Unauthorized] = (StatusCodes.Status401Unauthorized, "Unauthorized"),
+        [ErrorKind.NotFound] = (StatusCodes.Status404NotFound, "Not Found"),
+        [ErrorKind.Conflict] = (StatusCodes.Status409Conflict, "Conflict"),
     };
 
     public async ValueTask<bool> TryHandleAsync(
@@ -22,26 +25,30 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
     {
         ArgumentNullException.ThrowIfNull(httpContext);
 
-        if (exception is not ApiException apiException)
+        if (exception is not AppException appException)
         {
             return false;
         }
 
+        var (status, title) = Responses.TryGetValue(appException.Kind, out var mapped)
+            ? mapped
+            : (StatusCodes.Status400BadRequest, "Error");
+
         logger.LogInformation(
             "Request {Path} rejected with {StatusCode}: {Reason}",
             httpContext.Request.Path,
-            apiException.StatusCode,
-            apiException.Message);
+            status,
+            appException.Message);
 
         var problem = new ProblemDetails
         {
-            Status = apiException.StatusCode,
-            Title = Titles.TryGetValue(apiException.StatusCode, out var title) ? title : "Error",
-            Detail = apiException.Message,
+            Status = status,
+            Title = title,
+            Detail = appException.Message,
             Instance = httpContext.Request.Path,
         };
 
-        httpContext.Response.StatusCode = apiException.StatusCode;
+        httpContext.Response.StatusCode = status;
         await httpContext.Response
             .WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json", cancellationToken)
             .ConfigureAwait(false);

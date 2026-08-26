@@ -1,5 +1,5 @@
-using FinanceTracker.Api.Common;
-using FinanceTracker.Api.Dtos;
+using FinanceTracker.Application.Common;
+using FinanceTracker.Application.Dtos;
 using FinanceTracker.Tests.Infrastructure;
 
 namespace FinanceTracker.Tests.Services;
@@ -57,13 +57,13 @@ public sealed class GoalServiceTests : IDisposable
             new GoalRequest { Name = "Car", TargetAmount = 100m, Color = "#123456" },
             CancellationToken.None);
 
-        var error = await Assert.ThrowsAsync<ApiException>(() => _harness.Goals.ContributeAsync(
+        var error = await Assert.ThrowsAsync<AppException>(() => _harness.Goals.ContributeAsync(
             userId,
             goal.Id,
             new ContributeRequest { Amount = 0m },
             CancellationToken.None));
 
-        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+        Assert.Equal(ErrorKind.Validation, error.Kind);
     }
 
     [Fact]
@@ -78,10 +78,10 @@ public sealed class GoalServiceTests : IDisposable
 
         Assert.Empty(await _harness.Goals.ListAsync(stranger, CancellationToken.None));
 
-        var error = await Assert.ThrowsAsync<ApiException>(
+        var error = await Assert.ThrowsAsync<AppException>(
             () => _harness.Goals.DeleteAsync(stranger, goal.Id, CancellationToken.None));
 
-        Assert.Equal(StatusCodes.Status404NotFound, error.StatusCode);
+        Assert.Equal(ErrorKind.NotFound, error.Kind);
     }
 
     public void Dispose() => _harness.Dispose();

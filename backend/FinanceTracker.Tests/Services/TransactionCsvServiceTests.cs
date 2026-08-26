@@ -1,7 +1,7 @@
 using System.Text;
-using FinanceTracker.Api.Common;
-using FinanceTracker.Api.Dtos;
-using FinanceTracker.Api.Models;
+using FinanceTracker.Application.Common;
+using FinanceTracker.Application.Dtos;
+using FinanceTracker.Domain;
 using FinanceTracker.Tests.Infrastructure;
 
 namespace FinanceTracker.Tests.Services;
@@ -120,9 +120,9 @@ public sealed class TransactionCsvServiceTests : IDisposable
     {
         var userId = await _harness.CreateUserAsync();
 
-        var error = await Assert.ThrowsAsync<ApiException>(() => ImportAsync(userId, string.Empty));
+        var error = await Assert.ThrowsAsync<AppException>(() => ImportAsync(userId, string.Empty));
 
-        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+        Assert.Equal(ErrorKind.Validation, error.Kind);
     }
 
     private async Task<ImportResult> ImportAsync(Guid userId, string csv)

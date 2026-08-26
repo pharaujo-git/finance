@@ -1,6 +1,6 @@
-using FinanceTracker.Api.Common;
-using FinanceTracker.Api.Dtos;
-using FinanceTracker.Api.Models;
+using FinanceTracker.Application.Common;
+using FinanceTracker.Application.Dtos;
+using FinanceTracker.Domain;
 using FinanceTracker.Tests.Infrastructure;
 
 namespace FinanceTracker.Tests.Services;
@@ -44,10 +44,10 @@ public sealed class BudgetServiceTests : IDisposable
 
         await _harness.Budgets.CreateAsync(userId, request, CancellationToken.None);
 
-        var error = await Assert.ThrowsAsync<ApiException>(
+        var error = await Assert.ThrowsAsync<AppException>(
             () => _harness.Budgets.CreateAsync(userId, request, CancellationToken.None));
 
-        Assert.Equal(StatusCodes.Status409Conflict, error.StatusCode);
+        Assert.Equal(ErrorKind.Conflict, error.Kind);
     }
 
     [Fact]
@@ -78,10 +78,10 @@ public sealed class BudgetServiceTests : IDisposable
     {
         var userId = await _harness.CreateUserAsync();
 
-        var error = await Assert.ThrowsAsync<ApiException>(
+        var error = await Assert.ThrowsAsync<AppException>(
             () => _harness.Budgets.ListAsync(userId, "not-a-month", CancellationToken.None));
 
-        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+        Assert.Equal(ErrorKind.Validation, error.Kind);
     }
 
     [Fact]

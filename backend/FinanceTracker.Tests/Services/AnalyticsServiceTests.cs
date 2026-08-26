@@ -1,5 +1,5 @@
-using FinanceTracker.Api.Common;
-using FinanceTracker.Api.Models;
+using FinanceTracker.Application.Common;
+using FinanceTracker.Domain;
 using FinanceTracker.Tests.Infrastructure;
 
 namespace FinanceTracker.Tests.Services;
@@ -134,10 +134,10 @@ public sealed class AnalyticsServiceTests : IDisposable
     {
         var userId = await _harness.CreateUserAsync();
 
-        var error = await Assert.ThrowsAsync<ApiException>(
+        var error = await Assert.ThrowsAsync<AppException>(
             () => _harness.Analytics.GetMonthlyReportAsync(userId, 12, CancellationToken.None));
 
-        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+        Assert.Equal(ErrorKind.Validation, error.Kind);
     }
 
     [Fact]

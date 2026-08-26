@@ -1,1 +1,1 @@
-global using Microsoft.AspNetCore.Http;
+global using FinanceTracker.Application.Common;

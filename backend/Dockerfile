@@ -3,7 +3,11 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
+# Copy the project files first so restore is cached independently of source edits.
 COPY FinanceTracker.sln ./
+COPY FinanceTracker.Domain/FinanceTracker.Domain.csproj FinanceTracker.Domain/
+COPY FinanceTracker.Application/FinanceTracker.Application.csproj FinanceTracker.Application/
+COPY FinanceTracker.Infrastructure/FinanceTracker.Infrastructure.csproj FinanceTracker.Infrastructure/
 COPY FinanceTracker.Api/FinanceTracker.Api.csproj FinanceTracker.Api/
 COPY FinanceTracker.Tests/FinanceTracker.Tests.csproj FinanceTracker.Tests/
 RUN dotnet restore FinanceTracker.Api/FinanceTracker.Api.csproj

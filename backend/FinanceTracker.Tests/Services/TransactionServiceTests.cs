@@ -1,6 +1,6 @@
-using FinanceTracker.Api.Common;
-using FinanceTracker.Api.Dtos;
-using FinanceTracker.Api.Models;
+using FinanceTracker.Application.Common;
+using FinanceTracker.Application.Dtos;
+using FinanceTracker.Domain;
 using FinanceTracker.Tests.Infrastructure;
 
 namespace FinanceTracker.Tests.Services;
@@ -119,13 +119,13 @@ public sealed class TransactionServiceTests : IDisposable
     {
         var (userId, accountId) = await SeedAsync();
 
-        var missingTarget = await Assert.ThrowsAsync<ApiException>(() => _harness.AddTransactionAsync(
+        var missingTarget = await Assert.ThrowsAsync<AppException>(() => _harness.AddTransactionAsync(
             userId, accountId, TransactionType.Transfer, 10m, TestHarness.Utc(2026, 1, 1)));
-        Assert.Equal(StatusCodes.Status400BadRequest, missingTarget.StatusCode);
+        Assert.Equal(ErrorKind.Validation, missingTarget.Kind);
 
-        var sameAccount = await Assert.ThrowsAsync<ApiException>(() => _harness.AddTransactionAsync(
+        var sameAccount = await Assert.ThrowsAsync<AppException>(() => _harness.AddTransactionAsync(
             userId, accountId, TransactionType.Transfer, 10m, TestHarness.Utc(2026, 1, 1), transferAccountId: accountId));
-        Assert.Equal(StatusCodes.Status400BadRequest, sameAccount.StatusCode);
+        Assert.Equal(ErrorKind.Validation, sameAccount.Kind);
     }
 
     [Fact]
@@ -135,13 +135,13 @@ public sealed class TransactionServiceTests : IDisposable
         var stranger = await _harness.CreateUserAsync("stranger@example.com");
         var strangerCategory = await _harness.CreateCategoryAsync(stranger, "Theirs");
 
-        var badAccount = await Assert.ThrowsAsync<ApiException>(() => _harness.AddTransactionAsync(
+        var badAccount = await Assert.ThrowsAsync<AppException>(() => _harness.AddTransactionAsync(
             userId, Guid.NewGuid(), TransactionType.Expense, 5m, TestHarness.Utc(2026, 1, 1)));
-        Assert.Equal(StatusCodes.Status404NotFound, badAccount.StatusCode);
+        Assert.Equal(ErrorKind.NotFound, badAccount.Kind);
 
-        var badCategory = await Assert.ThrowsAsync<ApiException>(() => _harness.AddTransactionAsync(
+        var badCategory = await Assert.ThrowsAsync<AppException>(() => _harness.AddTransactionAsync(
             userId, accountId, TransactionType.Expense, 5m, TestHarness.Utc(2026, 1, 1), strangerCategory.Id));
-        Assert.Equal(StatusCodes.Status404NotFound, badCategory.StatusCode);
+        Assert.Equal(ErrorKind.NotFound, badCategory.Kind);
     }
 
     [Fact]
@@ -166,9 +166,9 @@ public sealed class TransactionServiceTests : IDisposable
         Assert.Equal(42m, updated.Amount);
         Assert.Empty(updated.Tags);
 
-        var foreignUpdate = await Assert.ThrowsAsync<ApiException>(
+        var foreignUpdate = await Assert.ThrowsAsync<AppException>(
             () => _harness.Transactions.UpdateAsync(stranger, created.Id, request, CancellationToken.None));
-        Assert.Equal(StatusCodes.Status404NotFound, foreignUpdate.StatusCode);
+        Assert.Equal(ErrorKind.NotFound, foreignUpdate.Kind);
 
         await _harness.Transactions.DeleteAsync(userId, created.Id, CancellationToken.None);
         var afterDelete = await Search(userId, new TransactionQuery());

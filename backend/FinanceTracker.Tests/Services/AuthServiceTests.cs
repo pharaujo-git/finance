@@ -1,5 +1,5 @@
-using FinanceTracker.Api.Common;
-using FinanceTracker.Api.Dtos;
+using FinanceTracker.Application.Common;
+using FinanceTracker.Application.Dtos;
 using FinanceTracker.Tests.Infrastructure;
 
 namespace FinanceTracker.Tests.Services;
@@ -26,11 +26,11 @@ public sealed class AuthServiceTests : IDisposable
     {
         await _harness.CreateUserAsync("dup@example.com");
 
-        var error = await Assert.ThrowsAsync<ApiException>(() => _harness.Auth.RegisterAsync(
+        var error = await Assert.ThrowsAsync<AppException>(() => _harness.Auth.RegisterAsync(
             new RegisterRequest { Email = "DUP@example.com", Password = "another password", Name = "Copy" },
             CancellationToken.None));
 
-        Assert.Equal(StatusCodes.Status409Conflict, error.StatusCode);
+        Assert.Equal(ErrorKind.Conflict, error.Kind);
     }
 
     [Fact]
@@ -53,11 +53,11 @@ public sealed class AuthServiceTests : IDisposable
     {
         await _harness.CreateUserAsync("login@example.com");
 
-        var error = await Assert.ThrowsAsync<ApiException>(() => _harness.Auth.LoginAsync(
+        var error = await Assert.ThrowsAsync<AppException>(() => _harness.Auth.LoginAsync(
             new LoginRequest { Email = email, Password = password },
             CancellationToken.None));
 
-        Assert.Equal(StatusCodes.Status401Unauthorized, error.StatusCode);
+        Assert.Equal(ErrorKind.Unauthorized, error.Kind);
     }
 
     [Fact]
@@ -80,10 +80,10 @@ public sealed class AuthServiceTests : IDisposable
     [Fact]
     public async Task GetProfileForUnknownUserThrowsNotFound()
     {
-        var error = await Assert.ThrowsAsync<ApiException>(
+        var error = await Assert.ThrowsAsync<AppException>(
             () => _harness.Auth.GetProfileAsync(Guid.NewGuid(), CancellationToken.None));
 
-        Assert.Equal(StatusCodes.Status404NotFound, error.StatusCode);
+        Assert.Equal(ErrorKind.NotFound, error.Kind);
     }
 
     public void Dispose() => _harness.Dispose();

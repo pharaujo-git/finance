@@ -1,6 +1,6 @@
-using FinanceTracker.Api.Common;
-using FinanceTracker.Api.Dtos;
-using FinanceTracker.Api.Models;
+using FinanceTracker.Application.Common;
+using FinanceTracker.Application.Dtos;
+using FinanceTracker.Domain;
 using FinanceTracker.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -46,16 +46,16 @@ public sealed class CategoryServiceTests : IDisposable
         var userId = await _harness.CreateUserAsync();
         var seeded = (await _harness.Categories.ListAsync(userId, CancellationToken.None)).First(c => c.IsDefault);
 
-        var deleteError = await Assert.ThrowsAsync<ApiException>(
+        var deleteError = await Assert.ThrowsAsync<AppException>(
             () => _harness.Categories.DeleteAsync(userId, seeded.Id, CancellationToken.None));
-        Assert.Equal(StatusCodes.Status400BadRequest, deleteError.StatusCode);
+        Assert.Equal(ErrorKind.Validation, deleteError.Kind);
 
-        var updateError = await Assert.ThrowsAsync<ApiException>(() => _harness.Categories.UpdateAsync(
+        var updateError = await Assert.ThrowsAsync<AppException>(() => _harness.Categories.UpdateAsync(
             userId,
             seeded.Id,
             new CategoryRequest { Name = "Hijack", Type = CategoryType.Expense },
             CancellationToken.None));
-        Assert.Equal(StatusCodes.Status400BadRequest, updateError.StatusCode);
+        Assert.Equal(ErrorKind.Validation, updateError.Kind);
     }
 
     [Fact]
@@ -109,10 +109,10 @@ public sealed class CategoryServiceTests : IDisposable
     {
         var userId = await _harness.CreateUserAsync();
 
-        var error = await Assert.ThrowsAsync<ApiException>(
+        var error = await Assert.ThrowsAsync<AppException>(
             () => _harness.Categories.DeleteAsync(userId, Guid.NewGuid(), CancellationToken.None));
 
-        Assert.Equal(StatusCodes.Status404NotFound, error.StatusCode);
+        Assert.Equal(ErrorKind.NotFound, error.Kind);
     }
 
     public void Dispose() => _harness.Dispose();

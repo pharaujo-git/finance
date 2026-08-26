@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using FinanceTracker.Application.Common;
 using Microsoft.IdentityModel.JsonWebTokens;
 
 namespace FinanceTracker.Api.Common;
@@ -15,6 +16,6 @@ public static class ClaimsPrincipalExtensions
 
         return Guid.TryParse(raw, out var userId)
             ? userId
-            : throw ApiException.Unauthorized("The access token does not identify a user.");
+            : throw AppException.Unauthorized("The access token does not identify a user.");
     }
 }

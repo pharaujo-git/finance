@@ -1,7 +1,7 @@
-using FinanceTracker.Api.Common;
-using FinanceTracker.Api.Dtos;
-using FinanceTracker.Api.Models;
-using FinanceTracker.Api.Services;
+using FinanceTracker.Application.Common;
+using FinanceTracker.Application.Dtos;
+using FinanceTracker.Application.Services;
+using FinanceTracker.Domain;
 using FinanceTracker.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -131,9 +131,9 @@ public sealed class RecurringServiceTests : IDisposable
         Assert.Equal(Frequency.Yearly, updated.Frequency);
         Assert.Equal(TestHarness.Utc(2026, 6, 1), updated.NextRunDate);
 
-        var error = await Assert.ThrowsAsync<ApiException>(() => _harness.Recurring.DeleteAsync(
+        var error = await Assert.ThrowsAsync<AppException>(() => _harness.Recurring.DeleteAsync(
             stranger, rule.Id, CancellationToken.None));
-        Assert.Equal(StatusCodes.Status404NotFound, error.StatusCode);
+        Assert.Equal(ErrorKind.NotFound, error.Kind);
 
         await _harness.Recurring.DeleteAsync(userId, rule.Id, CancellationToken.None);
         Assert.Empty(await _harness.Recurring.ListAsync(userId, CancellationToken.None));
@@ -145,7 +145,7 @@ public sealed class RecurringServiceTests : IDisposable
         var (userId, accountId) = await SeedAsync();
 
         var transferRule = BuildRequest(accountId, Frequency.Monthly, TestHarness.Utc(2026, 1, 1));
-        var transferError = await Assert.ThrowsAsync<ApiException>(() => _harness.Recurring.CreateAsync(
+        var transferError = await Assert.ThrowsAsync<AppException>(() => _harness.Recurring.CreateAsync(
             userId,
             new RecurringRuleRequest
             {
@@ -157,9 +157,9 @@ public sealed class RecurringServiceTests : IDisposable
                 StartDate = transferRule.StartDate,
             },
             CancellationToken.None));
-        Assert.Equal(StatusCodes.Status400BadRequest, transferError.StatusCode);
+        Assert.Equal(ErrorKind.Validation, transferError.Kind);
 
-        var badDates = await Assert.ThrowsAsync<ApiException>(() => _harness.Recurring.CreateAsync(
+        var badDates = await Assert.ThrowsAsync<AppException>(() => _harness.Recurring.CreateAsync(
             userId,
             new RecurringRuleRequest
             {
@@ -172,13 +172,13 @@ public sealed class RecurringServiceTests : IDisposable
                 EndDate = TestHarness.Utc(2026, 4, 1),
             },
             CancellationToken.None));
-        Assert.Equal(StatusCodes.Status400BadRequest, badDates.StatusCode);
+        Assert.Equal(ErrorKind.Validation, badDates.Kind);
 
-        var unknownAccount = await Assert.ThrowsAsync<ApiException>(() => _harness.Recurring.CreateAsync(
+        var unknownAccount = await Assert.ThrowsAsync<AppException>(() => _harness.Recurring.CreateAsync(
             userId,
             BuildRequest(Guid.NewGuid(), Frequency.Monthly, TestHarness.Utc(2026, 1, 1)),
             CancellationToken.None));
-        Assert.Equal(StatusCodes.Status404NotFound, unknownAccount.StatusCode);
+        Assert.Equal(ErrorKind.NotFound, unknownAccount.Kind);
     }
 
     private static RecurringRuleRequest BuildRequest(Guid accountId, Frequency frequency, DateTime startDate) => new()

@@ -1,13 +1,13 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using FinanceTracker.Api.BackgroundJobs;
 using FinanceTracker.Api.Common;
-using FinanceTracker.Api.Data;
-using FinanceTracker.Api.Models;
-using FinanceTracker.Api.Services;
+using FinanceTracker.Application;
+using FinanceTracker.Infrastructure;
+using FinanceTracker.Infrastructure.Hosting;
+using FinanceTracker.Infrastructure.Identity;
+using FinanceTracker.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Cors.Infrastructure;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,22 +20,8 @@ if (builder.Environment.IsProduction() || builder.Configuration[ServerBinding.Po
     builder.WebHost.ConfigureKestrel(options => options.ListenAnyIP(port));
 }
 
-// Everything below resolves configuration from DI so that values supplied late
-// (environment variables, test overrides) are honoured rather than snapshotted here.
-builder.Services.AddSingleton(sp => JwtOptions.FromConfiguration(sp.GetRequiredService<IConfiguration>()));
-builder.Services.AddAppDatabase();
-builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
-builder.Services.AddSingleton<ITokenService, TokenService>();
-builder.Services.AddScoped<AuthService>();
-builder.Services.AddScoped<AccountService>();
-builder.Services.AddScoped<CategoryService>();
-builder.Services.AddScoped<TransactionService>();
-builder.Services.AddScoped<TransactionCsvService>();
-builder.Services.AddScoped<RecurringService>();
-builder.Services.AddScoped<BudgetService>();
-builder.Services.AddScoped<GoalService>();
-builder.Services.AddScoped<AnalyticsService>();
-builder.Services.AddHostedService<RecurringTransactionWorker>();
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure();
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
@@ -76,12 +62,7 @@ builder.Services.AddSwaggerGen(SwaggerSetup.Configure);
 
 var app = builder.Build();
 
-await using (var scope = app.Services.CreateAsyncScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.Database.EnsureCreatedAsync();
-    await DefaultCategorySeeder.SeedAsync(db);
-}
+await DatabaseInitializer.InitializeAsync(app.Services);
 
 if (app.Environment.IsDevelopment())
 {

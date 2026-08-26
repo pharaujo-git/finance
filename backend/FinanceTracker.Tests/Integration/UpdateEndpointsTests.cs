@@ -2,8 +2,8 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
-using FinanceTracker.Api.Dtos;
-using FinanceTracker.Api.Models;
+using FinanceTracker.Application.Dtos;
+using FinanceTracker.Domain;
 using FinanceTracker.Tests.Infrastructure;
 
 namespace FinanceTracker.Tests.Integration;

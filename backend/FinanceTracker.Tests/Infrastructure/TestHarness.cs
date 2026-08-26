@@ -1,8 +1,8 @@
-using FinanceTracker.Api.Data;
-using FinanceTracker.Api.Dtos;
-using FinanceTracker.Api.Models;
-using FinanceTracker.Api.Services;
-using Microsoft.AspNetCore.Identity;
+using FinanceTracker.Application.Dtos;
+using FinanceTracker.Application.Services;
+using FinanceTracker.Domain;
+using FinanceTracker.Infrastructure.Identity;
+using FinanceTracker.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -37,7 +37,7 @@ internal sealed class TestHarness : IDisposable
         Budgets = new BudgetService(Db, Categories);
         Goals = new GoalService(Db);
         Analytics = new AnalyticsService(Db, Transactions);
-        Auth = new AuthService(Db, new TokenService(new JwtOptions()), new PasswordHasher<User>());
+        Auth = new AuthService(Db, new TokenService(new JwtOptions()), new IdentityPasswordHasher());
     }
 
     public AppDbContext Db { get; }

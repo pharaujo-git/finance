@@ -1,8 +1,11 @@
 using System.Security.Claims;
 using FinanceTracker.Api.Common;
-using FinanceTracker.Api.Data;
-using FinanceTracker.Api.Models;
-using FinanceTracker.Api.Services;
+using FinanceTracker.Application.Common;
+using FinanceTracker.Application.Services;
+using FinanceTracker.Domain;
+using FinanceTracker.Infrastructure.Hosting;
+using FinanceTracker.Infrastructure.Identity;
+using FinanceTracker.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.JsonWebTokens;
 
@@ -59,9 +62,9 @@ public sealed class MonthKeyTests
     [InlineData(null)]
     public void ParseRejectsMalformedInput(string? value)
     {
-        var error = Assert.Throws<ApiException>(() => MonthKey.Parse(value));
+        var error = Assert.Throws<AppException>(() => MonthKey.Parse(value));
 
-        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+        Assert.Equal(ErrorKind.Validation, error.Kind);
     }
 
     [Fact]
@@ -164,9 +167,9 @@ public sealed class ClaimsPrincipalExtensionsTests
     [Fact]
     public void GetUserIdThrowsUnauthorizedWhenTheClaimIsMissing()
     {
-        var error = Assert.Throws<ApiException>(() => new ClaimsPrincipal(new ClaimsIdentity()).GetUserId());
+        var error = Assert.Throws<AppException>(() => new ClaimsPrincipal(new ClaimsIdentity()).GetUserId());
 
-        Assert.Equal(StatusCodes.Status401Unauthorized, error.StatusCode);
+        Assert.Equal(ErrorKind.Unauthorized, error.Kind);
     }
 }
 

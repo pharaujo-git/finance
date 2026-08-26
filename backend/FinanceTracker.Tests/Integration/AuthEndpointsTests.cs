@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using FinanceTracker.Api.Dtos;
+using FinanceTracker.Application.Dtos;
 using FinanceTracker.Tests.Infrastructure;
 
 namespace FinanceTracker.Tests.Integration;

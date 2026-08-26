@@ -1,6 +1,6 @@
-using FinanceTracker.Api.Common;
-using FinanceTracker.Api.Dtos;
-using FinanceTracker.Api.Models;
+using FinanceTracker.Application.Common;
+using FinanceTracker.Application.Dtos;
+using FinanceTracker.Domain;
 using FinanceTracker.Tests.Infrastructure;
 
 namespace FinanceTracker.Tests.Services;
@@ -43,10 +43,10 @@ public sealed class AccountServiceTests : IDisposable
 
         Assert.Empty(await _harness.Accounts.ListAsync(stranger, CancellationToken.None));
 
-        var error = await Assert.ThrowsAsync<ApiException>(
+        var error = await Assert.ThrowsAsync<AppException>(
             () => _harness.Accounts.GetAsync(stranger, account.Id, CancellationToken.None));
 
-        Assert.Equal(StatusCodes.Status404NotFound, error.StatusCode);
+        Assert.Equal(ErrorKind.NotFound, error.Kind);
     }
 
     [Fact]
