@@ -95,6 +95,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapGet("/health", () => Results.Text("ok")).AllowAnonymous();
+app.MapGet("/", () => Results.Ok(new { service = "FinanceTracker API", status = "ok", docs = "/swagger" }))
+    .AllowAnonymous();
 
 await app.RunAsync();
 

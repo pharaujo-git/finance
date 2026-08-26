@@ -21,6 +21,17 @@ public sealed class AuthEndpointsTests : IClassFixture<FinanceApiFactory>
     }
 
     [Fact]
+    public async Task RootIsAnonymousAndPointsAtTheDocs()
+    {
+        var response = await _factory.CreateClient().GetAsync(new Uri("/", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("FinanceTracker API", body, StringComparison.Ordinal);
+        Assert.Contains("/swagger", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RegisterThenLoginReturnsATokenAndProfile()
     {
         var client = _factory.CreateClient();
