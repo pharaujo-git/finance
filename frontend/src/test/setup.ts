@@ -26,6 +26,8 @@ if (!window.matchMedia) {
 
 beforeEach(() => {
   window.localStorage.clear()
+  // The backend choice is per-tab, so this has to be reset between tests too.
+  window.sessionStorage.clear()
 })
 
 afterEach(() => {
