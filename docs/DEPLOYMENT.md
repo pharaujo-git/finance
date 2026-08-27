@@ -79,12 +79,45 @@ output — without the rewrite Vercel serves its own 404 for any deep link or re
 `/` works. Vercel checks the filesystem before rewrites, so `/assets/*` is still served
 directly.
 
-## 2a. Node backend on Vercel
+## 2a. Backends on Vercel
 
-The Node implementation is deployed as its own Vercel project, `finance-api-node`, at
-<https://finance-api-node.vercel.app>. It is what `VITE_API_URL_NODE` points at, and it is the
-frontend's default backend — the other four are Docker containers and need the Render blueprint
-in §2 before they answer anything.
+Four of the five implementations run on Vercel, one project each, alongside the frontend and on
+the same free plan. The .NET one is not among them: Vercel has no .NET runtime, so it still
+needs the Render blueprint in §2.
+
+| Project | URL | How Vercel runs it |
+| --- | --- | --- |
+| `finance-api-node` | <https://finance-api-node.vercel.app> | Node server, entry `app.ts` |
+| `finance-api-py` | <https://finance-api-py.vercel.app> | FastAPI preset, entry `main.py` |
+| `finance-api-go` | <https://finance-api-go.vercel.app> | Go server, `cmd/api` — no entry file at all |
+| `finance-api-rb` | <https://finance-api-rb.vercel.app> | Ruby/WEBrick function, entry `api/index.rb` |
+
+All four share one `JWT_SECRET`, so a token minted by any of them is accepted by the other
+three, and all four read the same Neon database. Each carries its own `DATABASE_URL`,
+`JWT_SECRET` and `ALLOWED_ORIGINS`.
+
+**Vercel picks the runtime itself, and the four detections are genuinely different.** Go needed
+nothing: Vercel found the `main` package and runs the existing binary as a long-running server,
+so `cmd/api/main.go` is deployed unchanged. Python is detected as a *FastAPI framework preset*
+once `fastapi` is in `requirements.txt`; it wants a module-level `app`, which is why `main.py`
+sits at the project root. Node is detected as a Node server and wants an entrypoint that imports
+`express` itself. Ruby is not detected at all — it needs an explicit `api/*.rb` function.
+
+**Two routing traps, and they differ by runtime.** A `rewrites` rule destroys the original
+request path: the function receives the *destination* path, and no header carries the original
+(the Python runtime reports `/api/index` for every request, so FastAPI 404s on everything).
+Python therefore relies on its framework preset rather than a rewrite. The Ruby runtime does the
+opposite — it preserves the real path — so `api/index.rb` needs no rewrite at all.
+
+**The Ruby runtime is WEBrick, not Rack.** It calls `Handler` with `(request, response)`, not
+with a Rack `env`, so `api/index.rb` bridges the two by hand. `Rackup::Handler::WEBrick` is not
+used because it expects a live WEBrick server object this runtime never constructs. The bridge
+sets `rack.url_scheme` to `https`: Vercel terminates TLS in front, and `production.rb` sets
+`assume_ssl`, so without it `force_ssl` bounces every request.
+
+### The Node project specifically
+
+
 
 `backend-node/app.ts` is the entry point. Vercel's Node runtime wraps that module's default
 export, and three things about it are load-bearing:

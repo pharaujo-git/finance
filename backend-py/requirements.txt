@@ -1,0 +1,8 @@
+# Vercel's Python runtime installs from this file. Runtime dependencies only:
+# uvicorn is deliberately absent because Vercel serves the ASGI app itself,
+# and the dev/test extras in pyproject.toml are not needed to serve a request.
+fastapi>=0.115
+asyncpg>=0.30
+pydantic>=2.9
+pyjwt>=2.9
+python-multipart>=0.0.20

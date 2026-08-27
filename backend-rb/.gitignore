@@ -10,3 +10,5 @@
 /tmp/*
 !/log/.keep
 !/tmp/.keep
+.vercel
+.env*

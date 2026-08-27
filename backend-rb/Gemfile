@@ -8,6 +8,9 @@ gem "puma", ">= 5.0"
 gem "pg", "~> 1.5"
 gem "jwt", "~> 2.9"
 
+# Vercel's Ruby runtime serves through WEBrick; api/index.rb bridges it to Rack.
+gem "webrick", "~> 1.9"
+
 gem "tzinfo-data", platforms: %i[ windows jruby ]
 
 group :development, :test do
