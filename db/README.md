@@ -105,6 +105,10 @@ That situation never actually arose. The Neon database was empty when CI first r
 normally and production has been a plain dbmate database from the start. Nothing needs marking
 by hand.
 
+Production is a single Neon database, `neondb`, shared by every deployed backend. The
+`NEON_DATABASE_URL` secret is its **unpooled** endpoint and the backends' `DATABASE_URL` is the
+pooled one, so `migrate-prod` and the running APIs are always looking at the same schema.
+
 To check the state of production at any time, against the **unpooled** endpoint:
 
 ```sh

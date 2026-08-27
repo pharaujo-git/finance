@@ -93,7 +93,12 @@ needs the Render blueprint in §2.
 | `finance-api-rb` | <https://finance-api-rb.vercel.app> | Ruby/WEBrick function, entry `api/index.rb` |
 
 All four share one `JWT_SECRET`, so a token minted by any of them is accepted by the other
-three, and all four read the same Neon database. Each carries its own `DATABASE_URL`,
+three, and all four read the same Neon database. That is `neondb`, supplied by the Neon–Vercel
+integration, and it is also what the `NEON_DATABASE_URL` GitHub secret points at — so
+`migrate-prod` migrates the database production actually reads. There is one database; keep it
+that way. A `DATABASE_URL` on a backend that differs from `NEON_DATABASE_URL` means the APIs
+read a schema CI never migrates, and the failure is `relation "Users" does not exist` on a
+deploy that otherwise looks healthy. Each carries its own `DATABASE_URL`,
 `JWT_SECRET` and `ALLOWED_ORIGINS`.
 
 **Vercel picks the runtime itself, and the four detections are genuinely different.** Go needed
@@ -147,13 +152,6 @@ container build, and the app is identical either way.
 The pool is opened with `max: 1`. Each invocation serves one request at a time and Neon's
 pooler is what actually fans out; the container keeps `max: 10` because there one process
 really does serve concurrently.
-
-> **The database is not the one CI migrates.** `finance-api-node` inherits `DATABASE_URL` from
-> the Neon–Vercel integration on the frontend project, which points at `neondb` in the
-> integration's own Neon project. The `NEON_DATABASE_URL` GitHub secret points somewhere else,
-> so `migrate-prod` does **not** migrate the database this backend reads. Both have had
-> `0001`/`0002` applied by hand; a third migration needs applying to both, or the two need
-> pointing at one database. See §3.
 
 ## 2. Render (backends)
 
