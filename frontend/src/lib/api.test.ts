@@ -58,6 +58,7 @@ describe('apiRequest', () => {
     vi.stubEnv('VITE_API_URL_DOTNET', 'https://dotnet.example.com')
     vi.stubEnv('VITE_API_URL_GO', 'https://go.example.com')
 
+    setBackend('dotnet')
     const dotnetSpy = mockFetch(jsonResponse([]))
     await api.get('/accounts')
     expect(dotnetSpy.mock.calls[0][0]).toBe(

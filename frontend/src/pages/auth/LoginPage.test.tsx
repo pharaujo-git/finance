@@ -55,11 +55,12 @@ describe('LoginPage', () => {
     )
   })
 
-  it('offers the backend selector with .NET active by default', () => {
+  it('offers the backend selector with Node active by default', () => {
     renderWithProviders(<LoginPage />)
 
+    // Node is the default because it is the backend that is actually deployed.
     const tablist = screen.getByRole('tablist', { name: 'API backend' })
-    expect(within(tablist).getByRole('tab', { name: '.NET' })).toHaveAttribute(
+    expect(within(tablist).getByRole('tab', { name: 'Node' })).toHaveAttribute(
       'aria-selected',
       'true',
     )
