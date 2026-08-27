@@ -3,9 +3,9 @@
 Two targets, one pipeline:
 
 - **Frontend** (Vite/React) → Vercel, deployed by `.github/workflows/ci.yml` after the SonarQube gate passes.
-- **Backend** (.NET API `finance-api`, Go API `finance-api-go`, Python API `finance-api-py`) →
-  Render, all deployed from `render.yaml` (Docker blueprint). Same database, same JWT secret,
-  same endpoints.
+- **Backend** (.NET `finance-api`, Go `finance-api-go`, Python `finance-api-py`, Node
+  `finance-api-node`) → Render, all deployed from `render.yaml` (Docker blueprint). Same
+  database, same JWT secret, same endpoints.
 - **Database** → Neon Postgres, injected as `DATABASE_URL`.
 - **Schema** → `db/migrations`, applied by the `migrate-prod` CI job with dbmate. Neither API
   issues DDL against Postgres.
@@ -54,7 +54,8 @@ variables the frontend needs at build time must be set in the **Vercel** project
 | `VITE_API_URL_DOTNET` | Origin of the `finance-api` Render service. |
 | `VITE_API_URL_GO` | Origin of the `finance-api-go` Render service. |
 | `VITE_API_URL_PYTHON` | Origin of the `finance-api-py` Render service. |
-| `VITE_API_URL` | Legacy single-backend variable. Still honoured, but only as the fallback for `VITE_API_URL_DOTNET`; the Go and Python backends ignore it. |
+| `VITE_API_URL_NODE` | Origin of the `finance-api-node` Render service. |
+| `VITE_API_URL` | Legacy single-backend variable. Still honoured, but only as the fallback for `VITE_API_URL_DOTNET`; the Go, Python and Node backends ignore it. |
 
 Origins only — scheme and host, **no** trailing slash and **no** `/api` suffix; the fetch wrapper
 adds the path. The backend a visitor talks to is chosen in the UI and stored per device, so both
@@ -69,7 +70,8 @@ variables need to be set for the switch to work in production.
 | `finance-api` | .NET API. `backend/Dockerfile`, listens on `$PORT` (default `8080`). |
 | `finance-api-go` | Go API. `backend-go/Dockerfile`, listens on `$PORT` (default `8081`). |
 | `finance-api-py` | Python API. `backend-py/Dockerfile`, listens on `$PORT` (default `8082`). |
-| `finance-shared` | Environment group holding `JWT_SECRET`, attached to all three services. |
+| `finance-api-node` | Node API. `backend-node/Dockerfile`, listens on `$PORT` (default `8083`). |
+| `finance-shared` | Environment group holding `JWT_SECRET`, attached to all four services. |
 
 > **Read this before you apply the blueprint.** `finance-api` currently runs with a `JWT_SECRET`
 > that Render generated *per service*. The blueprint moves that variable into the `finance-shared`

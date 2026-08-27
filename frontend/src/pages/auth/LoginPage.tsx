@@ -33,6 +33,7 @@ const BACKEND_TABS: TabItem<Backend>[] = [
   { id: 'dotnet', label: BACKEND_LABELS.dotnet },
   { id: 'go', label: BACKEND_LABELS.go },
   { id: 'python', label: BACKEND_LABELS.python },
+  { id: 'node', label: BACKEND_LABELS.node },
 ]
 
 export function LoginPage() {

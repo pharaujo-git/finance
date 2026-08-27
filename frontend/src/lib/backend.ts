@@ -1,5 +1,5 @@
 /** The API implementations the SPA can talk to. */
-export type Backend = 'dotnet' | 'go' | 'python'
+export type Backend = 'dotnet' | 'go' | 'python' | 'node'
 
 export const BACKEND_KEY = 'ft.backend'
 
@@ -9,6 +9,7 @@ export const BACKEND_LABELS: Record<Backend, string> = {
   dotnet: '.NET',
   go: 'Go',
   python: 'Python',
+  node: 'Node',
 }
 
 /**
@@ -35,7 +36,9 @@ function deviceStorage(): Storage | null {
 }
 
 function isBackend(value: unknown): value is Backend {
-  return value === 'dotnet' || value === 'go' || value === 'python'
+  return (
+    value === 'dotnet' || value === 'go' || value === 'python' || value === 'node'
+  )
 }
 
 /**
@@ -70,6 +73,9 @@ export function apiBase(): string {
   }
   if (backend === 'python') {
     return envBase('VITE_API_URL_PYTHON') ?? 'http://localhost:8082'
+  }
+  if (backend === 'node') {
+    return envBase('VITE_API_URL_NODE') ?? 'http://localhost:8083'
   }
   return (
     envBase('VITE_API_URL_DOTNET') ??

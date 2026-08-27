@@ -31,6 +31,11 @@ backend-py/.mypy_cache/
 backend-py/**/__pycache__/
 backend-py/*.egg-info/
 
+# Node / backend-node
+backend-node/node_modules/
+backend-node/dist/
+backend-node/coverage/
+
 # Vercel
 .vercel/
 

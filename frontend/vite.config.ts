@@ -11,6 +11,7 @@ import { defineConfig } from 'vite'
 const DOTNET_TARGET = process.env.DEV_PROXY_DOTNET ?? 'http://localhost:5001'
 const GO_TARGET = process.env.DEV_PROXY_GO ?? 'http://localhost:8081'
 const PYTHON_TARGET = process.env.DEV_PROXY_PYTHON ?? 'http://localhost:8082'
+const NODE_TARGET = process.env.DEV_PROXY_NODE ?? 'http://localhost:8083'
 
 /** Strips the routing prefix: /dotnet-api/api/x -> /api/x. */
 const stripPrefix = (prefix: string) => (path: string) =>
@@ -43,6 +44,11 @@ export default defineConfig({
         target: PYTHON_TARGET,
         changeOrigin: true,
         rewrite: stripPrefix('/py-api'),
+      },
+      '/node-api': {
+        target: NODE_TARGET,
+        changeOrigin: true,
+        rewrite: stripPrefix('/node-api'),
       },
     },
   },

@@ -23,10 +23,11 @@ frontend/            React app (Vercel project root)
 backend/             .NET API: FinanceTracker.{Domain,Application,Infrastructure,Api,Tests}
 backend-go/          Go API: cmd/api + internal/{domain,application,http,infrastructure}
 backend-py/          Python API: FastAPI, app/{domain,services,repositories,api}
+backend-node/        Node API: Express, src/{domain,services,repositories,api}
 db/                  SQL migrations (dbmate) — the schema's source of truth
 docs/                Deployment runbook
 .github/             CI pipeline: build → test → migrations → SonarQube gate → deploy
-render.yaml          Render blueprint for all three APIs
+render.yaml          Render blueprint for all four APIs
 docker-compose.yml   Local Postgres on :5432
 ```
 
@@ -48,21 +49,25 @@ cd backend-py && uv venv .venv && uv pip install --python .venv/bin/python -e ".
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/finance \
   .venv/bin/uvicorn app.main:build --factory --port 8082
 
-# 5. Frontend (http://localhost:5173)
+# 5. Node API (http://localhost:8083; DATABASE_URL is required)
+cd backend-node && npm install && npm run build
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/finance node dist/main.js
+
+# 6. Frontend (http://localhost:5173)
 cd frontend && npm install && npm run dev
 ```
 
-All three APIs can run at once. The login page has a segmented control that picks the
+All four APIs can run at once. The login page has a segmented control that picks the
 backend, remembered per tab; the origins come from `VITE_API_URL_DOTNET`,
-`VITE_API_URL_GO` and `VITE_API_URL_PYTHON` (see `frontend/.env.example`). They accept
-each other's tokens, so a session survives switching. No API creates or seeds Postgres
-tables — whenever `DATABASE_URL` is set the schema comes from `db/migrations` and nothing
-else.
+`VITE_API_URL_GO`, `VITE_API_URL_PYTHON` and `VITE_API_URL_NODE` (see
+`frontend/.env.example`). They accept each other's tokens, so a session survives
+switching. No API creates or seeds Postgres tables — whenever `DATABASE_URL` is set the
+schema comes from `db/migrations` and nothing else.
 
 ## Pipeline
 
 Every push/PR runs frontend lint/tests/build, .NET build/tests, Go gofmt/vet/golangci-lint,
-Python ruff/mypy/pytest
+Python ruff/mypy/pytest, Node eslint/tsc/vitest
 and race tests, and applies `db/migrations` to a throwaway Postgres (checking that a second
 `dbmate up` is a no-op and that every migration rolls back). It then boots an ephemeral
 SonarQube Community server inside the workflow, scans all three projects with coverage, and

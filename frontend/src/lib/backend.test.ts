@@ -56,6 +56,7 @@ describe('backend selection', () => {
       dotnet: '.NET',
       go: 'Go',
       python: 'Python',
+      node: 'Node',
     })
   })
 })
@@ -67,12 +68,21 @@ describe('apiBase', () => {
     vi.stubEnv('VITE_API_URL_GO', '')
 
     vi.stubEnv('VITE_API_URL_PYTHON', '')
+    vi.stubEnv('VITE_API_URL_NODE', '')
 
     expect(apiBase()).toBe('http://localhost:5000')
     setBackend('go')
     expect(apiBase()).toBe('http://localhost:8081')
     setBackend('python')
     expect(apiBase()).toBe('http://localhost:8082')
+    setBackend('node')
+    expect(apiBase()).toBe('http://localhost:8083')
+  })
+
+  it('uses VITE_API_URL_NODE for the Node backend', () => {
+    vi.stubEnv('VITE_API_URL_NODE', 'https://node.example.com')
+    setBackend('node')
+    expect(apiBase()).toBe('https://node.example.com')
   })
 
   it('uses VITE_API_URL_PYTHON for the Python backend', () => {
