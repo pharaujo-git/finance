@@ -74,24 +74,54 @@ function envBase(name: string): string | undefined {
   return value?.replace(/\/+$/, '') || undefined
 }
 
+/**
+ * The configured origin, or the local dev port it defaults to.
+ *
+ * The localhost default is a *development* convenience. In a deployed bundle
+ * it is a trap: the origin is compiled in at build time, so a build made
+ * before the variable existed points the browser at a port on the visitor's
+ * own machine, and every call dies as "Failed to fetch" with nothing reaching
+ * the server. A build made that way is rejected by assertApiOrigins in
+ * vite.config.ts; this says so out loud if one ever gets past it.
+ */
+function originOf(name: string, devPort: string): string {
+  const configured = envBase(name)
+  if (configured) return configured
+
+  if (import.meta.env.PROD) {
+    const label = BACKEND_LABELS_BY_VAR[name] ?? name
+    throw new Error(
+      `${name} was not set when this app was built, so the ${label} backend ` +
+        'has no address to call. Rebuild with it set.',
+    )
+  }
+  return `http://localhost:${devPort}`
+}
+
+/** Only used to name the backend in the error above. */
+const BACKEND_LABELS_BY_VAR: Record<string, string> = {
+  VITE_API_URL_DOTNET: BACKEND_LABELS.dotnet,
+  VITE_API_URL_GO: BACKEND_LABELS.go,
+  VITE_API_URL_PYTHON: BACKEND_LABELS.python,
+  VITE_API_URL_NODE: BACKEND_LABELS.node,
+  VITE_API_URL_RAILS: BACKEND_LABELS.rails,
+}
+
 /** Origin of the active backend — no trailing slash, no `/api` suffix. */
 export function apiBase(): string {
   const backend = getBackend()
   if (backend === 'go') {
-    return envBase('VITE_API_URL_GO') ?? 'http://localhost:8081'
+    return originOf('VITE_API_URL_GO', '8081')
   }
   if (backend === 'python') {
-    return envBase('VITE_API_URL_PYTHON') ?? 'http://localhost:8082'
+    return originOf('VITE_API_URL_PYTHON', '8082')
   }
   if (backend === 'node') {
-    return envBase('VITE_API_URL_NODE') ?? 'http://localhost:8083'
+    return originOf('VITE_API_URL_NODE', '8083')
   }
   if (backend === 'rails') {
-    return envBase('VITE_API_URL_RAILS') ?? 'http://localhost:8084'
+    return originOf('VITE_API_URL_RAILS', '8084')
   }
-  return (
-    envBase('VITE_API_URL_DOTNET') ??
-    envBase('VITE_API_URL') ??
-    'http://localhost:5000'
-  )
+  // The legacy single-API variable still stands in for the .NET origin.
+  return envBase('VITE_API_URL_DOTNET') ?? originOf('VITE_API_URL', '5000')
 }

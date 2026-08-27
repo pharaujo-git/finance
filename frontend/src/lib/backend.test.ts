@@ -142,4 +142,21 @@ describe('apiBase', () => {
     setBackend('dotnet')
     expect(apiBase()).toBe('https://legacy.example.com')
   })
+
+  it('refuses the localhost default in a production bundle', () => {
+    // A deployed bundle built before the variable existed used to point the
+    // visitor's browser at their own machine, which fails as "Failed to fetch"
+    // and never reaches the server. Say which variable is missing instead.
+    vi.stubEnv('PROD', true)
+    vi.stubEnv('VITE_API_URL_PYTHON', '')
+    setBackend('python')
+    expect(() => apiBase()).toThrow(/VITE_API_URL_PYTHON.*Python/s)
+  })
+
+  it('still uses the localhost defaults outside a production bundle', () => {
+    vi.stubEnv('PROD', false)
+    vi.stubEnv('VITE_API_URL_PYTHON', '')
+    setBackend('python')
+    expect(apiBase()).toBe('http://localhost:8082')
+  })
 })
