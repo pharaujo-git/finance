@@ -5,7 +5,8 @@ Two targets, one pipeline:
 - **Frontend** (Vite/React) → Vercel, deployed by `.github/workflows/ci.yml` after the SonarQube gate passes.
 - **Backend** (.NET `finance-api`, Go `finance-api-go`, Python `finance-api-py`, Node
   `finance-api-node`, Rails `finance-api-rb`) → Render, all deployed from `render.yaml`
-  (Docker blueprint). Same database, same JWT secret, same endpoints.
+  (Docker blueprint). Same database, same JWT secret, same endpoints. The four non-.NET ones also
+  run on Vercel (§2a), redeployed by the same workflow once the gate is green.
 - **Database** → Neon Postgres, injected as `DATABASE_URL`.
 - **Schema** → `db/migrations`, applied by the `migrate-prod` CI job with dbmate. No API
   issues DDL against Postgres.
@@ -100,6 +101,16 @@ that way. A `DATABASE_URL` on a backend that differs from `NEON_DATABASE_URL` me
 read a schema CI never migrates, and the failure is `relation "Users" does not exist` on a
 deploy that otherwise looks healthy. Each carries its own `DATABASE_URL`,
 `JWT_SECRET` and `ALLOWED_ORIGINS`.
+
+**All four redeploy from CI on every `main` push.** The `deploy-backends` job runs
+`vercel deploy --prod` from each backend directory with the shared `VERCEL_TOKEN` /
+`VERCEL_ORG_ID` and a per-project `VERCEL_PROJECT_ID` from the workflow matrix — a remote build,
+so unlike the frontend's `vercel pull` → `vercel build --prebuilt` route the runner needs no
+language toolchains — and it is ordered after the quality gate and `migrate-prod`, so a backend
+never boots against a schema older than its own code. The projects are still not git-connected on
+Vercel's side: CI's token-driven deploy is what triggers them, and like the frontend `deploy` job
+it skips with a `::notice::` when `VERCEL_TOKEN` is unset. A manual `vercel deploy --prod` from a
+backend directory still works; it is simply no longer required.
 
 **Vercel picks the runtime itself, and the four detections are genuinely different.** Go needed
 nothing: Vercel found the `main` package and runs the existing binary as a long-running server,
@@ -221,13 +232,14 @@ for the tool, the conventions and the local workflow. Two things matter for prod
   [db/README.md → One-time production baseline](../db/README.md#one-time-production-baseline-existing-neon-database).
   Until that is done the `migrate-prod` job will fail.
 - **After that it is automatic.** The `migrate-prod` job runs `dbmate up` against
-  `NEON_DATABASE_URL` on every `main` push that clears the quality gate, before the frontend
-  deploys. Adding a migration is the whole deployment step.
+  `NEON_DATABASE_URL` on every `main` push that clears the quality gate, before the frontend and
+  the Vercel backends deploy. Adding a migration is the whole deployment step.
 
 ## 4. The SonarQube quality gate
 
-The `sonarqube` job is the gatekeeper: `migrate-prod` has `needs: sonarqube` and `deploy` has
-`needs: [sonarqube, migrate-prod]`, so nothing migrates and nothing ships if the gate is red.
+The `sonarqube` job is the gatekeeper: `migrate-prod` has `needs: sonarqube`, and both `deploy`
+and `deploy-backends` have `needs: [sonarqube, migrate-prod]`, so nothing migrates and nothing
+ships if the gate is red.
 It scans three projects — `finance-backend` (.NET), `finance-backend-go` (Go) and
 `finance-frontend` — each with its own coverage report and its own gate verdict.
 

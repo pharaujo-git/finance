@@ -1000,9 +1000,10 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # 7. Deploy the frontend to Vercel production (main pushes only, after the
-  #    quality gate has passed and the database is migrated). The backends
-  #    deploy themselves from Render's blueprint (see render.yaml /
-  #    docs/DEPLOYMENT.md).
+  #    quality gate has passed and the database is migrated). The .NET backend
+  #    deploys itself from Render's blueprint (see render.yaml /
+  #    docs/DEPLOYMENT.md); the other four backends go to Vercel in the
+  #    deploy-backends job below.
   # ---------------------------------------------------------------------------
   deploy:
     name: Deploy frontend (Vercel)
@@ -1066,4 +1067,99 @@ jobs:
           {
             echo "## Vercel deployment"
             echo "${url}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # 8. Deploy the four non-.NET backends (Node, Python, Go, Ruby) to their own
+  #    Vercel projects, one matrix leg each (main pushes only). Same gating as
+  #    the frontend: behind the quality gate AND behind migrate-prod, so a
+  #    freshly deployed backend never boots against a stale schema.
+  #
+  #    These are REMOTE builds -- no `vercel pull` / `vercel build` / --prebuilt
+  #    like the frontend uses. Vercel builds the source server-side (which is
+  #    how these projects were first deployed), so the runner never needs a Go,
+  #    Python or Ruby toolchain; only the CLI, which is Node.
+  #
+  #    The project IDs are literals rather than secrets on purpose: they are
+  #    plain identifiers and are useless without VERCEL_TOKEN. Keeping them in
+  #    the matrix is what lets one job body cover all four projects.
+  # ---------------------------------------------------------------------------
+  deploy-backends:
+    name: Deploy ${{ matrix.name }} backend (Vercel)
+    runs-on: ubuntu-latest
+    needs: [sonarqube, migrate-prod]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    strategy:
+      # One broken backend should not strand the other three mid-rollout.
+      fail-fast: false
+      matrix:
+        include:
+          - name: node
+            dir: backend-node
+            project_id: prj_49snIL7fB3rdUkv2QUM9ISaGdCaA
+            url: https://finance-api-node.vercel.app
+          - name: python
+            dir: backend-py
+            project_id: prj_UIbqUdJkqXtMk6GjHWPcLZ9soIin
+            url: https://finance-api-py.vercel.app
+          - name: go
+            dir: backend-go
+            project_id: prj_o9Z2ANdm1vbs4cjWp3skRZjKEGpr
+            url: https://finance-api-go.vercel.app
+          - name: ruby
+            dir: backend-rb
+            project_id: prj_alM2E4Dpgj7qIn3Id2CbqA9UoagO
+            url: https://finance-api-rb.vercel.app
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      # Per-leg, unlike the frontend job's single VERCEL_PROJECT_ID secret.
+      VERCEL_PROJECT_ID: ${{ matrix.project_id }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - name: Check for Vercel token
+        id: token
+        # The repo checkout has not happened yet, so stay at the workspace root
+        # instead of the (not yet existing) backend directory.
+        working-directory: .
+        run: |
+          if [ -n "${VERCEL_TOKEN}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::VERCEL_TOKEN secret is not set; skipping the ${{ matrix.name }} backend deploy (see docs/DEPLOYMENT.md)."
+          fi
+
+      - name: Checkout
+        if: steps.token.outputs.present == 'true'
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        if: steps.token.outputs.present == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          # No npm cache here: the Go, Python and Ruby directories have no
+          # package-lock.json for the cache key to hash.
+
+      - name: Install Vercel CLI
+        if: steps.token.outputs.present == 'true'
+        run: npm i -g vercel
+
+      - name: Deploy
+        id: deploy
+        if: steps.token.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          # Source upload + remote build; the deployment URL is the only thing
+          # the CLI prints on stdout.
+          url="$(vercel deploy --prod --token="$VERCEL_TOKEN")"
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+          echo "Deployed to ${url}"
+          {
+            echo "## Vercel deployment (${{ matrix.name }})"
+            echo "${url}"
+            echo "Production alias: ${{ matrix.url }}"
           } >> "$GITHUB_STEP_SUMMARY"
