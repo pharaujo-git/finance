@@ -109,6 +109,16 @@ request path: the function receives the *destination* path, and no header carrie
 Python therefore relies on its framework preset rather than a rewrite. The Ruby runtime does the
 opposite — it preserves the real path — so `api/index.rb` needs no rewrite at all.
 
+**WEBrick answers `OPTIONS` before Rails sees it.** The Ruby runtime's servlet handles the
+preflight itself and replies `200` with an `Allow:` header and no CORS headers at all, so
+`CorsMiddleware` never runs for it and every cross-origin call from the browser fails with
+"Failed to fetch" — while `curl` works fine, because `curl` sends no preflight. The fix is in
+`backend-rb/vercel.json`: the CORS headers are declared at the edge, where they apply to the
+preflight too. Vercel *overrides* rather than appends, so a real request still carries exactly
+one `Access-Control-Allow-Origin` and the app's own middleware stays as it is for the container.
+The edge value is a single literal origin, so unlike the app's middleware it cannot echo the
+second Vercel alias; the canonical production origin is the one listed.
+
 **The Ruby runtime is WEBrick, not Rack.** It calls `Handler` with `(request, response)`, not
 with a Rack `env`, so `api/index.rb` bridges the two by hand. `Rackup::Handler::WEBrick` is not
 used because it expects a live WEBrick server object this runtime never constructs. The bridge
