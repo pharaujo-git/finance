@@ -56,7 +56,10 @@ class TestPasswordHashing:
         assert len(raw) == 13 + 16 + 32
 
     def test_salts_differ_between_hashes(self) -> None:
-        assert hash_password("same") != hash_password("same")
+        # Same password, two calls: a fresh salt each time means the blobs differ.
+        first = hash_password("same")
+        second = hash_password("same")
+        assert first != second
 
     def test_accepts_a_weaker_blob_but_asks_for_a_rehash(self) -> None:
         # A blob the .NET API would have written years ago.

@@ -609,7 +609,7 @@ jobs:
             /d:sonar.host.url="${SONAR_URL}" \
             /d:sonar.token="${SONAR_TOKEN}" \
             /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" \
-            /d:sonar.exclusions="frontend/**,backend-go/**" \
+            /d:sonar.exclusions="frontend/**,backend-go/**,backend-py/**" \
             /d:sonar.qualitygate.wait=true \
             /d:sonar.qualitygate.timeout=300
 
@@ -667,15 +667,19 @@ jobs:
         run: |
           set -euo pipefail
           ls -l backend-py/coverage.xml
+          # Scanned from backend-py rather than the repo root: coverage.py
+          # writes paths relative to that directory (app/...), and the two only
+          # line up if the scanner indexes from the same place.
           npx --yes @sonar/scan@5 \
             -Dsonar.projectKey="${BACKEND_PY_PROJECT_KEY}" \
             -Dsonar.projectName="Finance API (Python)" \
             -Dsonar.host.url="${SONAR_URL}" \
             -Dsonar.token="${SONAR_TOKEN}" \
-            -Dsonar.sources=backend-py/app \
-            -Dsonar.tests=backend-py/tests \
+            -Dsonar.projectBaseDir=backend-py \
+            -Dsonar.sources=app \
+            -Dsonar.tests=tests \
             -Dsonar.python.version=3.13 \
-            -Dsonar.python.coverage.reportPaths=backend-py/coverage.xml \
+            -Dsonar.python.coverage.reportPaths=coverage.xml \
             -Dsonar.qualitygate.wait=true \
             -Dsonar.qualitygate.timeout=300
 

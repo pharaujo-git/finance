@@ -33,6 +33,12 @@ select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 
+[tool.coverage.run]
+# Relative paths so the XML resolves on any machine: an absolute <source> from
+# a developer's laptop means nothing to the scanner running in CI.
+relative_files = true
+source = ["app"]
+
 [tool.mypy]
 python_version = "3.12"
 # Not `strict`: the DTOs are deliberately plain dicts so the JSON shape stays
