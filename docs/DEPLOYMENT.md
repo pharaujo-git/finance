@@ -79,6 +79,39 @@ output — without the rewrite Vercel serves its own 404 for any deep link or re
 `/` works. Vercel checks the filesystem before rewrites, so `/assets/*` is still served
 directly.
 
+## 2a. Node backend on Vercel
+
+The Node implementation is deployed as its own Vercel project, `finance-api-node`, at
+<https://finance-api-node.vercel.app>. It is what `VITE_API_URL_NODE` points at, and it is the
+frontend's default backend — the other four are Docker containers and need the Render blueprint
+in §2 before they answer anything.
+
+`backend-node/app.ts` is the entry point. Vercel's Node runtime wraps that module's default
+export, and three things about it are load-bearing:
+
+- It must **import `express` itself**, or the build fails with *"No entrypoint found which
+  imports express"*. The real app is mounted behind a thin outer instance rather than
+  re-exported, so `createApp` stays untouched.
+- It must be **`app.ts` at the project root**. The runtime searches `app.*` before `src/app.*`,
+  and it will happily pick up the wrong file — which is why `src/app.ts` was renamed to
+  `src/express-app.ts`, whose default export is a factory, not an app.
+- It imports from **`src/`, not `dist/`**. `dist/` is gitignored and therefore never uploaded,
+  so an entry importing it resolves to nothing once deployed.
+
+No listener is created there; Vercel owns the socket. `src/main.ts` still owns it for the
+container build, and the app is identical either way.
+
+The pool is opened with `max: 1`. Each invocation serves one request at a time and Neon's
+pooler is what actually fans out; the container keeps `max: 10` because there one process
+really does serve concurrently.
+
+> **The database is not the one CI migrates.** `finance-api-node` inherits `DATABASE_URL` from
+> the Neon–Vercel integration on the frontend project, which points at `neondb` in the
+> integration's own Neon project. The `NEON_DATABASE_URL` GitHub secret points somewhere else,
+> so `migrate-prod` does **not** migrate the database this backend reads. Both have had
+> `0001`/`0002` applied by hand; a third migration needs applying to both, or the two need
+> pointing at one database. See §3.
+
 ## 2. Render (backends)
 
 `render.yaml` declares five web services and one environment group:

@@ -5,7 +5,7 @@
 
 import express, { type Application, type Request, type Response, type Router } from 'express'
 import multer from 'multer'
-import { send } from '../../app.js'
+import { send } from '../../express-app.js'
 import { FieldErrors, unauthorized, validationError } from '../../core/errors.js'
 import { InvalidTokenError } from '../../core/security.js'
 import { FIELD, LIMITS, intRange, maxLength } from '../../domain/validation.js'

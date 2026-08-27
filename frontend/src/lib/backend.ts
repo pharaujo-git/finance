@@ -3,7 +3,11 @@ export type Backend = 'dotnet' | 'go' | 'python' | 'node' | 'rails'
 
 export const BACKEND_KEY = 'ft.backend'
 
-const DEFAULT_BACKEND: Backend = 'dotnet'
+// Node is the default because it is the implementation that is actually
+// deployed: it runs on Vercel beside this app. The other four are containers
+// and need a Docker host (see render.yaml), so a visitor who has not chosen
+// would otherwise land on a backend that is not answering.
+const DEFAULT_BACKEND: Backend = 'node'
 
 export const BACKEND_LABELS: Record<Backend, string> = {
   dotnet: '.NET',

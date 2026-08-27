@@ -1,6 +1,6 @@
 /** Process entry point: read the environment, open the pool, serve. */
 
-import { createApp } from './app.js'
+import { createApp } from './express-app.js'
 import { loadSettings } from './core/config.js'
 import { createPool } from './db.js'
 

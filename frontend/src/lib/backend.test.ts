@@ -12,8 +12,8 @@ afterEach(() => {
 })
 
 describe('backend selection', () => {
-  it('defaults to .NET', () => {
-    expect(getBackend()).toBe('dotnet')
+  it('defaults to Node, the deployed backend', () => {
+    expect(getBackend()).toBe('node')
   })
 
   it('round-trips the choice', () => {
@@ -48,7 +48,7 @@ describe('backend selection', () => {
   it('falls back to the default for an unknown stored value', () => {
     window.localStorage.setItem(BACKEND_KEY, 'rust')
     window.sessionStorage.setItem(BACKEND_KEY, 'rust')
-    expect(getBackend()).toBe('dotnet')
+    expect(getBackend()).toBe('node')
   })
 
   it('labels every backend', () => {
@@ -72,6 +72,7 @@ describe('apiBase', () => {
     vi.stubEnv('VITE_API_URL_NODE', '')
     vi.stubEnv('VITE_API_URL_RAILS', '')
 
+    setBackend('dotnet')
     expect(apiBase()).toBe('http://localhost:5000')
     setBackend('go')
     expect(apiBase()).toBe('http://localhost:8081')
@@ -105,6 +106,7 @@ describe('apiBase', () => {
   it('prefers VITE_API_URL_DOTNET over VITE_API_URL', () => {
     vi.stubEnv('VITE_API_URL', 'https://legacy.example.com')
     vi.stubEnv('VITE_API_URL_DOTNET', 'https://dotnet.example.com')
+    setBackend('dotnet')
     expect(apiBase()).toBe('https://dotnet.example.com')
   })
 
@@ -113,6 +115,7 @@ describe('apiBase', () => {
     // is only reachable when it is unset.
     vi.stubEnv('VITE_API_URL_DOTNET', '')
     vi.stubEnv('VITE_API_URL', 'https://legacy.example.com')
+    setBackend('dotnet')
     expect(apiBase()).toBe('https://legacy.example.com')
   })
 
@@ -125,6 +128,7 @@ describe('apiBase', () => {
 
   it('strips trailing slashes', () => {
     vi.stubEnv('VITE_API_URL_DOTNET', 'https://dotnet.example.com///')
+    setBackend('dotnet')
     expect(apiBase()).toBe('https://dotnet.example.com')
 
     vi.stubEnv('VITE_API_URL_GO', 'https://go.example.com/')
@@ -135,6 +139,7 @@ describe('apiBase', () => {
   it('treats an empty env value as unset', () => {
     vi.stubEnv('VITE_API_URL_DOTNET', '')
     vi.stubEnv('VITE_API_URL', 'https://legacy.example.com')
+    setBackend('dotnet')
     expect(apiBase()).toBe('https://legacy.example.com')
   })
 })
