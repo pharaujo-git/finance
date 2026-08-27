@@ -54,8 +54,19 @@ jobs:
       - name: Test (with coverage)
         run: npm test -- --run --coverage
 
+      # A compile check, not the deployed bundle: the artifact below is never
+      # shipped, and the real build runs in the deploy job from `vercel pull`.
+      # The origins are placeholders only because the build now refuses to run
+      # without them -- a bundle missing one silently calls localhost from the
+      # visitor's browser (see vite.config.ts).
       - name: Build
         run: npm run build
+        env:
+          VITE_API_URL_DOTNET: https://dotnet.invalid
+          VITE_API_URL_GO: https://go.invalid
+          VITE_API_URL_PYTHON: https://python.invalid
+          VITE_API_URL_NODE: https://node.invalid
+          VITE_API_URL_RAILS: https://rails.invalid
 
       - name: Upload coverage (lcov)
         uses: actions/upload-artifact@v7
