@@ -136,6 +136,59 @@ describe('apiRequest', () => {
     expect(assign).toHaveBeenCalledWith('/login')
   })
 
+  it('reports a rejected sign-in as bad credentials, not an expiry', async () => {
+    setToken('still-good')
+    const onUnauthorized = vi.fn()
+    setUnauthorizedHandler(onUnauthorized)
+    // The shape every backend actually sends: a problem document whose
+    // `title` is just the status word.
+    mockFetch(
+      jsonResponse(
+        {
+          title: 'Unauthorized',
+          status: 401,
+          detail: 'Invalid email or password.',
+          instance: '/api/auth/login',
+        },
+        401,
+      ),
+    )
+
+    await expect(
+      api.post('/auth/login', { email: 'a@b.c', password: 'wrong' }),
+    ).rejects.toThrow('Invalid email or password.')
+    // Mistyping a password must not sign the tab out.
+    expect(getToken()).toBe('still-good')
+    expect(onUnauthorized).not.toHaveBeenCalled()
+  })
+
+  it('prefers a problem document detail over its status-word title', async () => {
+    mockFetch(
+      jsonResponse(
+        { title: 'Conflict', detail: 'An account with that email already exists.' },
+        409,
+      ),
+    )
+    await expect(api.post('/auth/register', {})).rejects.toThrow(
+      'An account with that email already exists.',
+    )
+  })
+
+  it('uses the title when a validation document has no detail', async () => {
+    mockFetch(
+      jsonResponse(
+        {
+          title: 'One or more validation errors occurred.',
+          errors: { Email: ['The Email field is required.'] },
+        },
+        400,
+      ),
+    )
+    await expect(api.post('/auth/login', {})).rejects.toThrow(
+      'One or more validation errors occurred.',
+    )
+  })
+
   it('surfaces the API message from an error body', async () => {
     mockFetch(jsonResponse({ message: 'Name already used' }, 400))
     await expect(api.post('/accounts', {})).rejects.toThrow('Name already used')

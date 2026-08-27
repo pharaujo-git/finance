@@ -74,7 +74,13 @@ async function readError(response: Response): Promise<string> {
       const parsed: unknown = JSON.parse(text)
       if (parsed && typeof parsed === 'object') {
         const record = parsed as Record<string, unknown>
-        const message = record.message ?? record.title ?? record.error
+        // `detail` first: every backend answers with a problem document whose
+        // `title` is only the status word ("Unauthorized", "Conflict") and
+        // whose `detail` carries the sentence written for the reader. A
+        // validation document has no `detail`, and there `title` is the
+        // message.
+        const message =
+          record.detail ?? record.message ?? record.title ?? record.error
         if (typeof message === 'string' && message.length > 0) return message
       }
       return text
@@ -92,6 +98,21 @@ export interface RequestOptions {
   /** Send a raw body (e.g. FormData) instead of JSON. */
   formData?: FormData
   signal?: AbortSignal
+}
+
+/**
+ * The anonymous auth routes, where a 401 is an answer rather than an expiry.
+ *
+ * Sign-in reports a wrong email or password as 401. Treating that as a dead
+ * session tells someone who merely mistyped their password that their session
+ * expired, and throws away the message the backend actually sent.
+ */
+const ANONYMOUS_PATHS = ['/auth/login', '/auth/register']
+
+function isAnonymous(path: string): boolean {
+  return ANONYMOUS_PATHS.some(
+    (route) => path === route || path.startsWith(`${route}?`),
+  )
 }
 
 async function send(path: string, options: RequestOptions): Promise<Response> {
@@ -116,7 +137,7 @@ async function send(path: string, options: RequestOptions): Promise<Response> {
       signal: options.signal,
     })
 
-    if (response.status === 401) {
+    if (response.status === 401 && !isAnonymous(path)) {
       handleUnauthorized()
       throw new ApiError(401, 'Your session expired. Please sign in again.')
     }
