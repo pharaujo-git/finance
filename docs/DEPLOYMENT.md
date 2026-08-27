@@ -71,6 +71,14 @@ to reach the visitor's own machine.
 > protected by the flag either: anything Vite inlines is compiled into JavaScript the browser
 > downloads, so a `VITE_*` value is public by construction. Use the **Config** type.
 
+### SPA routing
+
+`frontend/vercel.json` rewrites every unmatched path to `/index.html`. React Router owns
+`/login`, `/transactions` and the rest, and those paths do not exist as files in the build
+output — without the rewrite Vercel serves its own 404 for any deep link or refresh, and only
+`/` works. Vercel checks the filesystem before rewrites, so `/assets/*` is still served
+directly.
+
 ## 2. Render (backends)
 
 `render.yaml` declares five web services and one environment group:
@@ -262,6 +270,7 @@ not required.
 | `sonarqube` job times out waiting for UP | Elasticsearch failed to start; check the service container logs in the job output. |
 | Gate fails only on `coverage` | New code landed without tests — the threshold is 60% overall, per project. |
 | Vercel deploy: "Project not found" | `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID` do not match the token's team. |
+| Deep links 404 but `/` works | The SPA rewrite is missing — see `frontend/vercel.json`. |
 | The deployed site calls `http://localhost:8081` | The matching `VITE_API_URL_*` is unset in Vercel Production, so `apiBase()` fell back to the local default. |
 | The deployed site calls `https://[SENSITIVE]/api/...` | That `VITE_*` variable is marked Sensitive in Vercel; `vercel pull` cannot read it. Recreate it as Config. |
 | Render 502 after deploy | The app is not binding to `$PORT`, or `/health` is not reachable. |
