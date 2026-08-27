@@ -94,46 +94,21 @@ The two files already here:
   upsert on startup. Every insert is guarded by `NOT EXISTS`, so it is safe to replay and
   is a no-op against a database that already has them.
 
-## One-time production baseline (existing Neon database)
+## Production baseline
 
-Production already has all seven tables and all 18 default categories, created by the old
-`EnsureCreated()` path. Running `dbmate up` against it as-is would fail on `0001`, so tell
-dbmate that `0001` is already applied first.
+**Already done — kept for the record.** This section used to describe a one-time fixup for a
+Neon database whose seven tables had been created by the old `EnsureCreated()` path: `0001`
+had to be marked applied by hand or `dbmate up` would fail on it.
 
-Do this **once**, before the first deploy that ships the migration-managed backend.
+That situation never actually arose. The Neon database was empty when CI first ran
+`migrate-prod`, so dbmate applied `0001_baseline.sql` and `0002_seed_default_categories.sql`
+normally and production has been a plain dbmate database from the start. Nothing needs marking
+by hand.
 
-1. Get the Neon **unpooled** connection string (the `...-pooler` host cannot run DDL
-   reliably; Neon exposes it as `DATABASE_URL_UNPOOLED` / the "direct connection" option in
-   the console).
+To check the state of production at any time, against the **unpooled** endpoint:
 
-2. Mark `0001` as applied:
+```sh
+DATABASE_URL="$DATABASE_URL_UNPOOLED" dbmate status
+```
 
-   ```sh
-   psql "$DATABASE_URL_UNPOOLED" -c \
-     "CREATE TABLE IF NOT EXISTS schema_migrations (version varchar(128) PRIMARY KEY);"
-   psql "$DATABASE_URL_UNPOOLED" -c \
-     "INSERT INTO schema_migrations (version) VALUES ('0001') ON CONFLICT DO NOTHING;"
-   ```
-
-3. Apply the rest:
-
-   ```sh
-   cd <repo root>
-   DATABASE_URL="$DATABASE_URL_UNPOOLED" DBMATE_NO_DUMP_SCHEMA=true dbmate up
-   ```
-
-   This applies `0002` only. It inserts nothing, because prod already has the 18
-   categories and every statement is `NOT EXISTS`-guarded -- it just records `0002` in
-   `schema_migrations`.
-
-4. Confirm:
-
-   ```sh
-   cd <repo root>
-   DATABASE_URL="$DATABASE_URL_UNPOOLED" dbmate status
-   ```
-
-   Both migrations should read `[X]`, with `Pending: 0`.
-
-From then on prod is a normal dbmate database: add a migration, run `dbmate up` against
-the unpooled endpoint as part of the deploy.
+Both migrations should read `[X]`, with `Pending: 0`.

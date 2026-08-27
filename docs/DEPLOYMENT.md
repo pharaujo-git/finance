@@ -56,11 +56,20 @@ variables the frontend needs at build time must be set in the **Vercel** project
 | `VITE_API_URL_PYTHON` | Origin of the `finance-api-py` Render service. |
 | `VITE_API_URL_NODE` | Origin of the `finance-api-node` Render service. |
 | `VITE_API_URL_RAILS` | Origin of the `finance-api-rb` Render service. |
-| `VITE_API_URL` | Legacy single-backend variable. Still honoured, but only as the fallback for `VITE_API_URL_DOTNET`; the Go, Python, Node and Rails backends ignore it. |
+| `VITE_API_URL` | Legacy single-backend variable, deliberately **not set** in Production. It is still honoured in code as the fallback for `VITE_API_URL_DOTNET`; the Go, Python, Node and Rails backends ignore it. |
 
 Origins only — scheme and host, **no** trailing slash and **no** `/api` suffix; the fetch wrapper
-adds the path. The backend a visitor talks to is chosen in the UI and stored per device, so both
-variables need to be set for the switch to work in production.
+adds the path. The backend a visitor talks to is chosen in the UI and stored per tab, so all five
+need to be set for the switch to work in production. A variable that is missing does not fail
+loudly — `apiBase()` falls back to `http://localhost:<port>`, and the deployed site quietly tries
+to reach the visitor's own machine.
+
+> **Never mark a `VITE_*` variable as Sensitive in Vercel.** The `deploy` job builds on the runner
+> (`vercel pull` → `vercel build --prod` → `vercel deploy --prebuilt --prod`), and `vercel pull`
+> returns the literal string `[SENSITIVE]` for a Secret-typed variable instead of its value. The
+> build then succeeds and bakes `[SENSITIVE]` into the bundle as the API origin. Nothing is
+> protected by the flag either: anything Vite inlines is compiled into JavaScript the browser
+> downloads, so a `VITE_*` value is public by construction. Use the **Config** type.
 
 ## 2. Render (backends)
 
@@ -73,25 +82,23 @@ variables need to be set for the switch to work in production.
 | `finance-api-py` | Python API. `backend-py/Dockerfile`, listens on `$PORT` (default `8082`). |
 | `finance-api-node` | Node API. `backend-node/Dockerfile`, listens on `$PORT` (default `8083`). |
 | `finance-api-rb` | Rails API. `backend-rb/Dockerfile`, listens on `$PORT` (default `8084`). |
-| `finance-shared` | Environment group holding `JWT_SECRET`, attached to all five services. |
+| `finance-shared` | Environment group holding `JWT_SECRET` and `ALLOWED_ORIGINS`, attached to all five services. |
 
-> **Read this before you apply the blueprint.** `finance-api` currently runs with a `JWT_SECRET`
-> that Render generated *per service*. The blueprint moves that variable into the `finance-shared`
-> group, and Render will generate a **new** value for the group. Copy the **current** value out of
-> `finance-api` → **Environment** first, then paste it into
-> **Environment → Environment Groups → finance-shared → `JWT_SECRET`**, replacing the generated
-> one. Skip this and the signing key changes once: every issued token stops validating and every
-> logged-in user is signed out. Do it once, and the two APIs mint tokens the other accepts.
+> **Region is permanent.** The blueprint pins every service to `virginia` (us-east-1) to sit
+> beside the Neon project. Render cannot change a service's region after creation — correcting it
+> later means deleting and recreating all five services. Check this before you click apply.
+
+`JWT_SECRET` needs no special handling. It is generated once into the group and shared by all
+five services; because the database was empty until CI's first migration there are no accounts
+and no issued tokens for a fresh secret to invalidate.
 
 1. **New → Blueprint**, connect this repository, pick the branch `main`. Render reads `render.yaml`
-   and proposes both services (Docker, free plan, Frankfurt) plus the `finance-shared` group.
-2. On the confirmation screen fill in the `sync: false` variables **for each service**:
-   - `DATABASE_URL` — the Neon **pooled** connection string (see §3). The same value on both.
-   - `ALLOWED_ORIGINS` — the production Vercel URL, `https://finance-beta-umber.vercel.app` (the production Vercel domain)
-     (comma-separate if you also want preview domains). This one is easy to set on one service
-     and forget on the other; the browser then works against one backend and CORS-fails on the
-     other, which looks like the Go API being broken.
-3. Fix up `JWT_SECRET` in the group as described in the note above.
+   and proposes all five services (Docker, free plan, Virginia) plus the `finance-shared` group.
+2. On the confirmation screen fill in the one `sync: false` variable **for each of the five
+   services**: `DATABASE_URL`, the Neon **pooled** connection string (see §3) — the same value
+   every time. It cannot live in the group, because Render rejects `sync: false` there.
+   `ALLOWED_ORIGINS` is *not* asked for: it carries a literal value in the group, so every
+   service gets the same origins and none can be missed.
 4. After the first deploy, open **Service → Settings → Build & Deploy** on *each* service and
    switch **Auto-Deploy** to **After CI Checks Pass**. That makes Render wait for this repo's
    GitHub checks — including the SonarQube gate — before shipping a new image, instead of
@@ -255,9 +262,10 @@ not required.
 | `sonarqube` job times out waiting for UP | Elasticsearch failed to start; check the service container logs in the job output. |
 | Gate fails only on `coverage` | New code landed without tests — the threshold is 60% overall, per project. |
 | Vercel deploy: "Project not found" | `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID` do not match the token's team. |
+| The deployed site calls `http://localhost:8081` | The matching `VITE_API_URL_*` is unset in Vercel Production, so `apiBase()` fell back to the local default. |
+| The deployed site calls `https://[SENSITIVE]/api/...` | That `VITE_*` variable is marked Sensitive in Vercel; `vercel pull` cannot read it. Recreate it as Config. |
 | Render 502 after deploy | The app is not binding to `$PORT`, or `/health` is not reachable. |
-| CORS errors in the browser | `ALLOWED_ORIGINS` on Render does not include the exact Vercel origin (scheme + host, no trailing slash) — check *both* services, they are configured separately. |
-| CORS errors only on the Go backend | `ALLOWED_ORIGINS` was set on `finance-api` but not on `finance-api-go`. |
+| CORS errors in the browser | `ALLOWED_ORIGINS` does not include the exact origin (scheme + host, no trailing slash). It is a literal value in the `finance-shared` group, so fix it once there rather than per service. A preview deployment's URL is not in the list by design. |
 | Everyone logged out after a deploy | `JWT_SECRET` changed. The `finance-shared` group value was not seeded from the old per-service secret. |
 | Token from one backend rejected by the other | The two services are not reading the same `finance-shared` group. |
 | `finance-api-go` or `finance-api-py` restarts in a loop | `DATABASE_URL` is unset or unreachable; both refuse to start rather than serving errors. Check the deploy logs for `config: DATABASE_URL is required`. |
