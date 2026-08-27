@@ -1,4 +1,4 @@
-# Render Blueprint for the Finance Tracker APIs (.NET and Go).
+# Render Blueprint for the Finance Tracker APIs (.NET, Go, Python, Node and Rails).
 # Dashboard: New -> Blueprint -> connect this repo. See docs/DEPLOYMENT.md.
 services:
   - type: web
@@ -23,7 +23,7 @@ services:
 
   # Second implementation of the same API, same database, same tokens. The
   # frontend picks between them at run time
-  # (VITE_API_URL_DOTNET / _GO / _PYTHON / _NODE).
+  # (VITE_API_URL_DOTNET / _GO / _PYTHON / _NODE / _RAILS).
   - type: web
     name: finance-api-go
     runtime: docker
@@ -80,8 +80,27 @@ services:
       - key: ALLOWED_ORIGINS
         sync: false
 
+  # Fifth implementation, on the same terms as the other four.
+  - type: web
+    name: finance-api-rb
+    runtime: docker
+    dockerfilePath: ./backend-rb/Dockerfile
+    dockerContext: ./backend-rb
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Same Neon connection string again - set it manually here too.
+      - key: DATABASE_URL
+        sync: false
+      - fromGroup: finance-shared
+      # Must list the same Vercel origin(s) as the others.
+      - key: ALLOWED_ORIGINS
+        sync: false
+
 # Shared secrets. `- fromGroup: <name>` attaches every variable in the group to
-# the service, so all four APIs receive the same JWT_SECRET.
+# the service, so all five APIs receive the same JWT_SECRET.
 #
 # ONE-TIME MANUAL STEP: finance-api already runs with a JWT_SECRET that Render
 # generated per-service. Before applying this blueprint, copy that CURRENT value

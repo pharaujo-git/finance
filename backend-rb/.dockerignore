@@ -1,0 +1,10 @@
+.bundle/
+vendor/bundle/
+coverage/
+spec/
+log/*
+tmp/*
+.rspec
+.rubocop.yml
+config/master.key
+config/credentials.yml.enc

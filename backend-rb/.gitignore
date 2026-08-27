@@ -1,0 +1,12 @@
+# Rails credentials are deliberately unused (see config/environments/production.rb).
+# Kept here so a stray `rails credentials:edit` can never commit the key.
+/config/master.key
+/config/credentials.yml.enc
+
+/.bundle/
+/vendor/bundle/
+/coverage/
+/log/*
+/tmp/*
+!/log/.keep
+!/tmp/.keep

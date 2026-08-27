@@ -34,6 +34,7 @@ const BACKEND_TABS: TabItem<Backend>[] = [
   { id: 'go', label: BACKEND_LABELS.go },
   { id: 'python', label: BACKEND_LABELS.python },
   { id: 'node', label: BACKEND_LABELS.node },
+  { id: 'rails', label: BACKEND_LABELS.rails },
 ]
 
 export function LoginPage() {

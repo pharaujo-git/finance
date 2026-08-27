@@ -57,6 +57,7 @@ describe('backend selection', () => {
       go: 'Go',
       python: 'Python',
       node: 'Node',
+      rails: 'Rails',
     })
   })
 })
@@ -69,6 +70,7 @@ describe('apiBase', () => {
 
     vi.stubEnv('VITE_API_URL_PYTHON', '')
     vi.stubEnv('VITE_API_URL_NODE', '')
+    vi.stubEnv('VITE_API_URL_RAILS', '')
 
     expect(apiBase()).toBe('http://localhost:5000')
     setBackend('go')
@@ -77,12 +79,20 @@ describe('apiBase', () => {
     expect(apiBase()).toBe('http://localhost:8082')
     setBackend('node')
     expect(apiBase()).toBe('http://localhost:8083')
+    setBackend('rails')
+    expect(apiBase()).toBe('http://localhost:8084')
   })
 
   it('uses VITE_API_URL_NODE for the Node backend', () => {
     vi.stubEnv('VITE_API_URL_NODE', 'https://node.example.com')
     setBackend('node')
     expect(apiBase()).toBe('https://node.example.com')
+  })
+
+  it('uses VITE_API_URL_RAILS for the Rails backend', () => {
+    vi.stubEnv('VITE_API_URL_RAILS', 'https://rails.example.com')
+    setBackend('rails')
+    expect(apiBase()).toBe('https://rails.example.com')
   })
 
   it('uses VITE_API_URL_PYTHON for the Python backend', () => {

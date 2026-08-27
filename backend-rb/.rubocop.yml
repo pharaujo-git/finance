@@ -1,0 +1,12 @@
+# Rails' own style guide (rubocop-rails-omakase), which is what `rails new`
+# ships. Kept as-is so the Ruby backend reads like idiomatic Rails.
+inherit_gem:
+  rubocop-rails-omakase: rubocop.yml
+
+AllCops:
+  Exclude:
+    - vendor/**/*
+    - bin/**/*
+    - tmp/**/*
+    - coverage/**/*
+  SuggestExtensions: false

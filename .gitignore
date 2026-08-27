@@ -10,6 +10,8 @@ frontend/coverage/
 # .NET / backend
 bin/
 obj/
+# ...but backend-rb/bin holds Rails' binstubs, which are source, not build output.
+!backend-rb/bin/
 *.user
 backend/**/TestResults/
 backend/**/coverage/
@@ -35,6 +37,15 @@ backend-py/*.egg-info/
 backend-node/node_modules/
 backend-node/dist/
 backend-node/coverage/
+
+# Ruby / backend-rb
+backend-rb/.bundle/
+backend-rb/vendor/bundle/
+backend-rb/coverage/
+backend-rb/log/*
+backend-rb/tmp/*
+backend-rb/config/master.key
+backend-rb/config/credentials.yml.enc
 
 # Vercel
 .vercel/
