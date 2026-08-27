@@ -16,22 +16,47 @@ describe('backend selection', () => {
     expect(getBackend()).toBe('dotnet')
   })
 
-  it('round-trips the choice through localStorage', () => {
+  it('round-trips the choice', () => {
     setBackend('go')
-    expect(window.localStorage.getItem(BACKEND_KEY)).toBe('go')
     expect(getBackend()).toBe('go')
 
     setBackend('dotnet')
     expect(getBackend()).toBe('dotnet')
   })
 
-  it('falls back to the default for an unknown stored value', () => {
-    window.localStorage.setItem(BACKEND_KEY, 'rust')
+  it('keeps the choice on the tab so other tabs are not repointed', () => {
+    setBackend('go')
+    expect(window.sessionStorage.getItem(BACKEND_KEY)).toBe('go')
+  })
+
+  it('remembers the choice for tabs opened later', () => {
+    setBackend('go')
+    expect(window.localStorage.getItem(BACKEND_KEY)).toBe('go')
+  })
+
+  it('inherits the remembered choice when the tab has not picked one', () => {
+    window.localStorage.setItem(BACKEND_KEY, 'go')
+    expect(getBackend()).toBe('go')
+  })
+
+  it("prefers this tab's choice over the remembered one", () => {
+    window.localStorage.setItem(BACKEND_KEY, 'go')
+    window.sessionStorage.setItem(BACKEND_KEY, 'dotnet')
     expect(getBackend()).toBe('dotnet')
   })
 
-  it('labels both backends', () => {
-    expect(BACKEND_LABELS).toEqual({ dotnet: '.NET', go: 'Go' })
+  it('falls back to the default for an unknown stored value', () => {
+    window.localStorage.setItem(BACKEND_KEY, 'rust')
+    window.sessionStorage.setItem(BACKEND_KEY, 'rust')
+    expect(getBackend()).toBe('dotnet')
+  })
+
+  it('labels every backend', () => {
+    expect(BACKEND_LABELS).toEqual({
+      dotnet: '.NET',
+      go: 'Go',
+      python: 'Python',
+    })
   })
 })
 
@@ -41,9 +66,20 @@ describe('apiBase', () => {
     vi.stubEnv('VITE_API_URL_DOTNET', '')
     vi.stubEnv('VITE_API_URL_GO', '')
 
+    vi.stubEnv('VITE_API_URL_PYTHON', '')
+
     expect(apiBase()).toBe('http://localhost:5000')
     setBackend('go')
     expect(apiBase()).toBe('http://localhost:8081')
+    setBackend('python')
+    expect(apiBase()).toBe('http://localhost:8082')
+  })
+
+  it('uses VITE_API_URL_PYTHON for the Python backend', () => {
+    vi.stubEnv('VITE_API_URL', 'https://legacy.example.com')
+    vi.stubEnv('VITE_API_URL_PYTHON', 'https://python.example.com')
+    setBackend('python')
+    expect(apiBase()).toBe('https://python.example.com')
   })
 
   it('prefers VITE_API_URL_DOTNET over VITE_API_URL', () => {
@@ -53,6 +89,9 @@ describe('apiBase', () => {
   })
 
   it('falls back to VITE_API_URL for the .NET backend', () => {
+    // Stubbed explicitly: a developer's .env.local sets this, and the fallback
+    // is only reachable when it is unset.
+    vi.stubEnv('VITE_API_URL_DOTNET', '')
     vi.stubEnv('VITE_API_URL', 'https://legacy.example.com')
     expect(apiBase()).toBe('https://legacy.example.com')
   })

@@ -22,7 +22,8 @@ services:
         sync: false
 
   # Second implementation of the same API, same database, same tokens. The
-  # frontend picks between them at run time (VITE_API_URL_DOTNET / _GO).
+  # frontend picks between them at run time
+  # (VITE_API_URL_DOTNET / _GO / _PYTHON).
   - type: web
     name: finance-api-go
     runtime: docker
@@ -41,8 +42,27 @@ services:
       - key: ALLOWED_ORIGINS
         sync: false
 
+  # Third implementation, on the same terms as the other two.
+  - type: web
+    name: finance-api-py
+    runtime: docker
+    dockerfilePath: ./backend-py/Dockerfile
+    dockerContext: ./backend-py
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Same Neon connection string again - set it manually here too.
+      - key: DATABASE_URL
+        sync: false
+      - fromGroup: finance-shared
+      # Must list the same Vercel origin(s) as the other two.
+      - key: ALLOWED_ORIGINS
+        sync: false
+
 # Shared secrets. `- fromGroup: <name>` attaches every variable in the group to
-# the service, so both APIs receive the same JWT_SECRET.
+# the service, so all three APIs receive the same JWT_SECRET.
 #
 # ONE-TIME MANUAL STEP: finance-api already runs with a JWT_SECRET that Render
 # generated per-service. Before applying this blueprint, copy that CURRENT value

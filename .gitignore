@@ -20,6 +20,17 @@ backend/**/coverage/
 # Go / backend-go
 backend-go/coverage.out
 
+# Python / backend-py
+backend-py/.venv/
+backend-py/dist/
+backend-py/.coverage
+backend-py/coverage.xml
+backend-py/.pytest_cache/
+backend-py/.ruff_cache/
+backend-py/.mypy_cache/
+backend-py/**/__pycache__/
+backend-py/*.egg-info/
+
 # Vercel
 .vercel/
 

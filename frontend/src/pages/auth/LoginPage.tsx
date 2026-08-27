@@ -32,6 +32,7 @@ const DEMO_CREDENTIALS = import.meta.env.DEV
 const BACKEND_TABS: TabItem<Backend>[] = [
   { id: 'dotnet', label: BACKEND_LABELS.dotnet },
   { id: 'go', label: BACKEND_LABELS.go },
+  { id: 'python', label: BACKEND_LABELS.python },
 ]
 
 export function LoginPage() {

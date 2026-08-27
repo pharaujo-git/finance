@@ -198,6 +198,74 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
+  # 3b. Backend (Python): the same API again, in FastAPI. Linted, type-checked
+  #     and tested here; the sonarqube job consumes the coverage XML this job
+  #     uploads.
+  # ---------------------------------------------------------------------------
+  backend-py:
+    name: Backend (Python)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend-py
+
+    services:
+      # tests/conftest.py builds a throwaway schema per test from db/migrations'
+      # baseline, exactly as the Go suite does. Without TEST_DATABASE_URL every
+      # test that needs Postgres SKIPS, which leaves the routers, services and
+      # repositories uncovered (36% instead of 91%) and sinks the Sonar gate.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: finance
+          POSTGRES_USER: finance
+          # Same throwaway-container reasoning as the Go job above.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U finance -d finance"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL: postgres://finance@localhost:5432/finance?sslmode=disable
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          # Matches requires-python in pyproject.toml and the runtime image.
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install
+        run: pip install -e ".[dev]" pytest-cov
+
+      - name: Lint (ruff)
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Type check (mypy)
+        run: mypy app
+
+      - name: Test (coverage)
+        run: pytest -q --cov=app --cov-report=xml:coverage.xml
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-py-coverage
+          path: backend-py/coverage.xml
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
   # 4. Migrations: apply db/migrations to a throwaway Postgres with dbmate and
   #    prove the three properties the deploy relies on -- they apply cleanly,
   #    re-running is a no-op, and every migration can be rolled back.
@@ -276,7 +344,7 @@ jobs:
   sonarqube:
     name: SonarQube quality gate
     runs-on: ubuntu-latest
-    needs: [frontend, backend, backend-go, migrations]
+    needs: [frontend, backend, backend-go, backend-py, migrations]
     timeout-minutes: 30
 
     services:
@@ -293,6 +361,7 @@ jobs:
       SONAR_URL: http://localhost:9000
       BACKEND_PROJECT_KEY: finance-backend
       BACKEND_GO_PROJECT_KEY: finance-backend-go
+      BACKEND_PY_PROJECT_KEY: finance-backend-py
       FRONTEND_PROJECT_KEY: finance-frontend
       QUALITY_GATE_NAME: ci-gate
 
@@ -587,6 +656,29 @@ jobs:
             -Dsonar.qualitygate.wait=true \
             -Dsonar.qualitygate.timeout=300
 
+      # -------------------------- Backend (Python) scan -----------------------
+      - name: Download backend-py coverage
+        uses: actions/download-artifact@v8
+        with:
+          name: backend-py-coverage
+          path: backend-py
+
+      - name: Backend (Python) scan (sonar-scanner + quality gate)
+        run: |
+          set -euo pipefail
+          ls -l backend-py/coverage.xml
+          npx --yes @sonar/scan@5 \
+            -Dsonar.projectKey="${BACKEND_PY_PROJECT_KEY}" \
+            -Dsonar.projectName="Finance API (Python)" \
+            -Dsonar.host.url="${SONAR_URL}" \
+            -Dsonar.token="${SONAR_TOKEN}" \
+            -Dsonar.sources=backend-py/app \
+            -Dsonar.tests=backend-py/tests \
+            -Dsonar.python.version=3.13 \
+            -Dsonar.python.coverage.reportPaths=backend-py/coverage.xml \
+            -Dsonar.qualitygate.wait=true \
+            -Dsonar.qualitygate.timeout=300
+
       # ----------------------------- Frontend scan ----------------------------
       - name: Download frontend coverage
         uses: actions/download-artifact@v8
@@ -638,6 +730,7 @@ jobs:
           echo "## SonarQube quality gate" >> "$GITHUB_STEP_SUMMARY"
           report "${BACKEND_PROJECT_KEY}"
           report "${BACKEND_GO_PROJECT_KEY}"
+          report "${BACKEND_PY_PROJECT_KEY}"
           report "${FRONTEND_PROJECT_KEY}"
 
   # ---------------------------------------------------------------------------
