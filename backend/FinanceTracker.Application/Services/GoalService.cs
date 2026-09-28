@@ -27,6 +27,8 @@ public sealed class GoalService(IAppDbContext db)
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        var createdAt = DateTime.UtcNow;
+
         var goal = new Goal { UserId = userId };
         Apply(goal, request);
 
