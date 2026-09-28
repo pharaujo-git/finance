@@ -517,6 +517,10 @@ jobs:
       BACKEND_RB_PROJECT_KEY: finance-backend-rb
       FRONTEND_PROJECT_KEY: finance-frontend
       QUALITY_GATE_NAME: ci-gate
+      # Severity of Sonar rule S1481 (unused local variable) in C#. LOW keeps it
+      # a report-only code smell; BLOCKER makes it trip the gate's
+      # "blocker issues > 0" condition and fail this job.
+      UNUSED_VARIABLE_SEVERITY: BLOCKER
 
     steps:
       - name: Checkout
@@ -727,11 +731,29 @@ jobs:
           add_condition reliability_rating       GT 1  software_quality_reliability_rating
           add_condition coverage                 LT 60
           add_condition duplicated_lines_density GT 5
+          add_condition software_quality_blocker_issues GT 0
 
           if [ "$CONDITIONS_ADDED" -lt 2 ]; then
             echo "::error::Quality gate '${GATE}' has ${CONDITIONS_ADDED} condition(s); refusing to run with a toothless gate."
             exit 1
           fi
+
+          # --- (c2) C# quality profile with our rule severities ---------------
+          # Built-in profiles are read-only, so copy "Sonar way" and override
+          # S1481 there. Only the severity can change -- Sonar keeps an unused
+          # variable a Maintainability issue, it cannot be relabelled a bug.
+          echo "Creating C# quality profile 'ci-strict' (S1481 = ${UNUSED_VARIABLE_SEVERITY})..."
+          api GET /api/qualityprofiles/search -G --data-urlencode "language=cs" >/dev/null
+          SONAR_WAY_CS="$(jq -r '.profiles[] | select(.isBuiltIn and .name == "Sonar way") | .key' "$BODY_FILE")"
+          api POST /api/qualityprofiles/copy \
+            --data-urlencode "fromKey=${SONAR_WAY_CS}" --data-urlencode "toName=ci-strict" >/dev/null
+          STRICT_CS="$(jq -r '.key' "$BODY_FILE")"
+          api POST /api/qualityprofiles/activate_rule \
+            --data-urlencode "key=${STRICT_CS}" \
+            --data-urlencode "rule=csharpsquid:S1481" \
+            --data-urlencode "impacts=MAINTAINABILITY=${UNUSED_VARIABLE_SEVERITY}" >/dev/null
+          api POST /api/qualityprofiles/set_default \
+            --data-urlencode "language=cs" --data-urlencode "qualityProfile=ci-strict" >/dev/null
 
           # --- (d) make it the instance default ------------------------------
           # Projects are auto-provisioned by the scanners *after* this point, so
