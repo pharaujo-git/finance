@@ -36,6 +36,13 @@ app/
 Dependencies point one way: routers → services → repositories. A router does
 HTTP only; a repository does queries only.
 
+## Household finance report
+
+`python -m app.report reports/profile.json` turns a hand-edited JSON profile
+(income, bills, loans, cars, goals) into a self-contained HTML report with
+savings ideas worked out from the numbers. It needs no database or server; see
+[reports/README.md](reports/README.md).
+
 ## Running it
 
 The API needs Postgres. The schema is owned by the dbmate migrations in

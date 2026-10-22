@@ -1,0 +1,67 @@
+{
+  "household": "Our Household",
+  "currency": "USD",
+
+  "income": [
+    { "name": "Salary 1 (take-home)", "monthly": 6200 },
+    { "name": "Salary 2 (take-home)", "monthly": 3600 }
+  ],
+
+  "monthly_savings": 400,
+  "monthly_retirement": 500,
+  "employer_match_captured": true,
+  "emergency_fund_months_target": 6,
+
+  "debts": [
+    { "name": "Mortgage", "kind": "mortgage", "monthly_payment": 3100,
+      "balance": 410000, "apr": 6.75, "escrow": 550 },
+    { "name": "Car 2 loan", "kind": "auto", "monthly_payment": 450,
+      "balance": 14500, "apr": 7.4 }
+  ],
+
+  "vehicles": [
+    { "name": "Car 1", "year": 2016, "value": 9000, "full_coverage": true },
+    { "name": "Car 2", "year": 2022, "value": 24000, "loan": "Car 2 loan" }
+  ],
+
+  "expenses": [
+    { "name": "Car insurance (both cars)", "category": "insurance", "monthly": 280 },
+    { "name": "Fuel", "category": "transportation", "monthly": 320 },
+    { "name": "Car maintenance", "category": "transportation", "monthly": 90 },
+    { "name": "Electricity & gas", "category": "utilities", "monthly": 260 },
+    { "name": "Water & trash", "category": "utilities", "monthly": 95 },
+    { "name": "Phone plans", "category": "phone_internet", "monthly": 140 },
+    { "name": "Internet", "category": "phone_internet", "monthly": 75 },
+    { "name": "Groceries", "category": "groceries", "monthly": 1100 },
+    { "name": "Restaurants & takeout", "category": "dining", "monthly": 520 },
+    { "name": "Streaming (3 services)", "category": "subscriptions", "monthly": 48 },
+    { "name": "Music", "category": "subscriptions", "monthly": 17 },
+    { "name": "Gym", "category": "subscriptions", "monthly": 60 },
+    { "name": "Health & pharmacy", "category": "health", "monthly": 150 },
+    { "name": "Shopping & household", "category": "shopping", "monthly": 350 },
+    { "name": "Entertainment", "category": "entertainment", "monthly": 180 }
+  ],
+
+  "accounts": [
+    { "name": "Checking", "type": "checking", "balance": 4200 },
+    { "name": "High-yield savings", "type": "savings", "balance": 9000 },
+    { "name": "401(k)", "type": "retirement", "balance": 62000 }
+  ],
+
+  "assets": [
+    { "name": "Home (estimated value)", "value": 520000 }
+  ],
+
+  "goals": [
+    { "name": "Emergency fund", "target": 30000, "current": 9000,
+      "target_date": "2028-06", "monthly_contribution": 400 },
+    { "name": "Car 1 replacement fund", "target": 15000, "current": 0,
+      "target_date": "2029-12" },
+    { "name": "Family vacation", "target": 5000, "current": 800,
+      "target_date": "2027-07", "monthly_contribution": 250 }
+  ],
+
+  "notes": [
+    "Sample numbers: only the mortgage ($3,100) and Car 2 payment ($450) are real; balances, rates, income and the other bills are placeholders to replace with your own."
+  ]
+}

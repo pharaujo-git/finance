@@ -1,0 +1,5 @@
+# Your real profile and the reports built from it stay on your machine.
+*
+!.gitignore
+!README.md
+!profile.example.json
